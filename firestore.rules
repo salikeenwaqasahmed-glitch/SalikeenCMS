@@ -1,0 +1,308 @@
+rules_version = '2';
+// Salik CRM — Firestore security rules
+//
+// OFFLINE-FIRST WORKFLOW (matches app):
+//
+// 1. EDITOR
+//    - Create salik → local DB (pending, inactive)
+//    - If online → push Firestore: approvalStatus=pending, isActive=false
+//    - Cannot update or delete after submit
+//
+// 2. GENDER ADMIN (own gender only)
+//    - Read all saliks in gender (pending + approved + rejected)
+//    - Approve/reject pending → local DB first
+//    - If online → push approval fields to Firestore
+//    - CRUD on approved saliks in own gender
+//    - Can create salik directly as approved
+//
+// 3. ADMIN (all genders)
+//    - Everything genderAdmin can do, across Male + Female
+//    - See pending queue for all genders, approve/reject, CRUD, delete
+//    - Create salik directly as approved
+//
+// Roles (users/{uid}.role): admin | genderAdmin | editor | crudUser (legacy → editor)
+// Salik fields: approvalStatus pending|approved|rejected, approvedByUid/Name/At on decision
+//
+// Deploy: firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasUserDoc() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userRole() {
+      return hasUserDoc() ? userDoc().role : '';
+    }
+
+    function isAdmin() {
+      return signedIn() && hasUserDoc() && userRole() == 'admin';
+    }
+
+    function isEditor() {
+      return signedIn() && hasUserDoc()
+        && userRole() in ['editor', 'crudUser'];
+    }
+
+    function isGenderAdmin() {
+      return signedIn() && hasUserDoc()
+        && userRole() in ['genderAdmin', 'gender_admin', 'GenderAdmin'];
+    }
+
+    function isApprover() {
+      return isAdmin() || isGenderAdmin();
+    }
+
+    function userGender() {
+      return hasUserDoc() ? userDoc().gender : '';
+    }
+
+    function genderMatches(salikG, userG) {
+      return salikG == userG
+        || (salikG == 'Female' && userG == 'female')
+        || (salikG == 'Male' && userG == 'male');
+    }
+
+    function salikGender() {
+      return resource.data.genderId;
+    }
+
+    function incomingSalikGender() {
+      return request.resource.data.genderId;
+    }
+
+    function optionalString(data, key) {
+      return !(key in data) || data[key] == null || data[key] is string;
+    }
+
+    // Read: admin = all genders; genderAdmin/editor = own gender (incl. pending queue).
+    // Allow get() on missing doc so create/sync can check existence before set.
+    function canReadSalikDoc(salikId) {
+      return isAdmin()
+        || (hasUserDoc()
+          && !exists(/databases/$(database)/documents/saliks/$(salikId)))
+        || canReadSalik();
+    }
+
+    function canReadSalik() {
+      return isAdmin() || (hasUserDoc() && genderMatches(salikGender(), userGender()));
+    }
+
+    // Write gender scope: admin = any; genderAdmin/editor = own gender only.
+    function canWriteSalikGender() {
+      return isAdmin() || (hasUserDoc() && genderMatches(incomingSalikGender(), userGender()));
+    }
+
+    function genderUnchanged() {
+      return !('genderId' in resource.data)
+        || !('genderId' in request.resource.data)
+        || request.resource.data.genderId == resource.data.genderId;
+    }
+
+    function validSalikPayload() {
+      let data = request.resource.data;
+      return data.genderId in ['Male', 'Female']
+        && data.mobileNumber is string
+        && data.mobileNumber.size() > 0
+        && optionalString(data, 'referenceName')
+        && optionalString(data, 'referenceMobile')
+        && optionalString(data, 'notes')
+        && data.approvalStatus in ['pending', 'approved', 'rejected']
+        && data.isActive is bool
+        && optionalString(data, 'addedByUid')
+        && optionalString(data, 'addedByName')
+        && optionalString(data, 'approvedByUid')
+        && optionalString(data, 'approvedByName')
+        && optionalString(data, 'approvedAt');
+    }
+
+    function validSalikCore() {
+      let data = request.resource.data;
+      return data.genderId in ['Male', 'Female']
+        && data.mobileNumber is string
+        && data.mobileNumber.size() > 0
+        && data.approvalStatus in ['pending', 'approved', 'rejected']
+        && data.isActive is bool;
+    }
+
+    // --- CREATE ---
+
+    // Editor step 1: submit pending salik (online push after local save).
+    function editorCreatePending() {
+      let data = request.resource.data;
+      return isEditor()
+        && data.approvalStatus == 'pending'
+        && data.isActive == false
+        && canWriteSalikGender()
+        && optionalString(data, 'approvedByUid')
+        && optionalString(data, 'approvedByName')
+        && optionalString(data, 'approvedAt');
+    }
+
+    // Admin / genderAdmin: skip queue — create approved directly.
+    function approverDirectCreate() {
+      return isApprover()
+        && request.resource.data.approvalStatus == 'approved'
+        && request.resource.data.isActive == true
+        && canWriteSalikGender();
+    }
+
+    function canCreateSalik() {
+      return signedIn() && (
+        (editorCreatePending() && validSalikCore())
+        || (approverDirectCreate() && validSalikPayload())
+      );
+    }
+
+    // --- UPDATE ---
+
+    // genderAdmin / admin step 2: pending (or legacy missing field) → approved | rejected.
+    function isApprovalTransition() {
+      let wasPending = !('approvalStatus' in resource.data)
+        || resource.data.approvalStatus == 'pending';
+      return wasPending
+        && request.resource.data.approvalStatus in ['approved', 'rejected']
+        && genderUnchanged();
+    }
+
+    function validApprovalDecision() {
+      let data = request.resource.data;
+      return data.approvedByUid is string
+        && data.approvedByUid.size() > 0
+        && data.approvedByName is string
+        && data.approvedByName.size() > 0
+        && data.approvedAt is string
+        && data.approvedAt.size() > 0
+        && (
+          (data.approvalStatus == 'approved' && data.isActive == true)
+          || (data.approvalStatus == 'rejected' && data.isActive == false)
+        );
+    }
+
+    function canApproveOrReject() {
+      return isApprover()
+        && isApprovalTransition()
+        && canReadSalik()
+        && canWriteSalikGender()
+        && validApprovalDecision();
+    }
+
+    // Edit approved salik (not pending). Editor never passes this.
+    function canModifyApprovedSalik() {
+      return isApprover()
+        && resource.data.approvalStatus == 'approved'
+        && request.resource.data.approvalStatus == 'approved'
+        && genderUnchanged()
+        && canReadSalik()
+        && canWriteSalikGender();
+    }
+
+    function canUpdateSalik() {
+      return signedIn()
+        && (isApprover() || isAdmin())
+        && !isEditor()
+        && (
+          (isAdmin() && validSalikPayload())
+          || canApproveOrReject()
+          || (canModifyApprovedSalik() && validSalikPayload())
+        );
+    }
+
+    // Demo gender-admin accounts: allow self-upgrade editor → genderAdmin (offline seed mismatch).
+    function isSelfDemoGenderAdminUpgrade() {
+      return request.auth.uid == userId
+        && resource.data.email in [
+          'femaleadmin@salikeen.com',
+          'maleadmin@salikeen.com'
+        ]
+        && request.resource.data.role == 'genderAdmin'
+        && resource.data.role in ['editor', 'crudUser']
+        && request.resource.data.gender in ['Male', 'Female'];
+    }
+
+    // Demo staff: fix role/gender drift between local seed and Firestore profile.
+    function isDemoStaffEmail(email) {
+      return email in [
+        'admin@salikeen.com',
+        'maleadmin@salikeen.com',
+        'femaleadmin@salikeen.com',
+        'maleeditor@salikeen.com',
+        'femaleeditor@salikeen.com'
+      ];
+    }
+
+    function isSelfDemoProfileRepair() {
+      return request.auth.uid == userId
+        && isDemoStaffEmail(resource.data.email)
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role in ['genderAdmin', 'editor', 'admin', 'crudUser']
+        && request.resource.data.gender in ['Male', 'Female'];
+    }
+
+    // --- DELETE ---
+
+    function canDeleteSalik() {
+      return signedIn() && (isAdmin() || (isGenderAdmin() && canReadSalik()));
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (
+        request.auth.uid == userId
+        || (hasUserDoc() && (isAdmin() || isApprover() || isEditor()))
+      );
+      allow create: if signedIn() && request.auth.uid == userId
+        && request.resource.data.email is string
+        && request.resource.data.email.size() > 0
+        && request.resource.data.role in ['genderAdmin', 'editor', 'admin', 'crudUser']
+        && request.resource.data.gender in ['Male', 'Female']
+        && (
+          !('email' in request.auth.token)
+          || request.auth.token.email == request.resource.data.email
+        );
+      allow update: if signedIn() && (
+        (request.auth.uid == userId
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.role == resource.data.role
+          && (
+            !('email' in request.auth.token)
+            || request.resource.data.email == request.auth.token.email
+          ))
+        || isAdmin()
+        || isSelfDemoGenderAdminUpgrade()
+        || isSelfDemoProfileRepair()
+      );
+      allow delete: if signedIn() && isAdmin();
+    }
+
+    match /saliks/{salikId} {
+      allow read: if signedIn() && canReadSalikDoc(salikId);
+      allow create: if canCreateSalik();
+      allow update: if canUpdateSalik();
+      allow delete: if canDeleteSalik();
+    }
+
+    match /cities/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && isAdmin();
+    }
+
+    match /areas/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && isAdmin();
+    }
+
+    match /meta/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isAdmin();
+    }
+  }
+}
