@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -10,16 +11,11 @@ import '../../../core/utils/access_control.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/user_session.dart';
 import '../domain/entities/approval_status.dart';
+import '../domain/entities/duplicate_salik_reason.dart';
 import '../domain/entities/salik.dart';
+import '../domain/entities/salik_duplicate_group.dart';
+import 'duplicate_salik_logic.dart';
 import 'salik_list_streams.dart';
-
-enum DuplicateSalikReason { mobile, nameEnglish, nameUrdu }
-
-class DuplicateSalikException implements Exception {
-  DuplicateSalikException(this.reason);
-
-  final DuplicateSalikReason reason;
-}
 
 class SalikPermissionException implements Exception {
   SalikPermissionException(this.message);
@@ -70,6 +66,11 @@ class SalikRepository {
     return addedByName.isNotEmpty && addedByName == session.name.trim();
   }
 
+  Stream<bool> _remoteSalikAccessStream(UserSession? session) {
+    if (session == null) return Stream.value(false);
+    return _auth.watchRemoteSalikAccess(session);
+  }
+
   Stream<List<Salik>> watchEditorDirectorySaliks(UserSession session) {
     final gender = AccessControl.genderFilter(session);
     bool include(Salik salik) =>
@@ -78,6 +79,7 @@ class SalikRepository {
 
     return watchMergedSaliks(
       onlineStream: _connectivity.onlineStream,
+      remoteAccessStream: _remoteSalikAccessStream(session),
       localStream: _db.watchSaliks(genderFilter: gender),
       remoteStreamFactory: () => _remoteSaliksInGender(gender),
       merge: (remote, local, online) {
@@ -107,6 +109,7 @@ class SalikRepository {
 
     return watchMergedSaliks(
       onlineStream: _connectivity.onlineStream,
+      remoteAccessStream: _remoteSalikAccessStream(session),
       localStream: _db.watchSaliks(genderFilter: gender),
       remoteStreamFactory: () => _remoteSaliksInGender(gender),
       merge: (remote, local, online) => mergeSalikOutbox(
@@ -133,6 +136,7 @@ class SalikRepository {
 
       return watchMergedSaliks(
         onlineStream: _connectivity.onlineStream,
+        remoteAccessStream: _remoteSalikAccessStream(session),
         localStream: _db.watchSaliks(genderFilter: gender),
         remoteStreamFactory: () => _remoteSaliksInGender(gender),
         merge: (remote, local, online) => mergeSalikOutbox(
@@ -149,6 +153,7 @@ class SalikRepository {
 
     return watchMergedSaliks(
       onlineStream: _connectivity.onlineStream,
+      remoteAccessStream: _remoteSalikAccessStream(session),
       localStream: _db.watchSaliks(
         genderFilter: gender,
         approvalStatus: ApprovalStatus.pending.toFirestore(),
@@ -196,6 +201,10 @@ class SalikRepository {
   }
 
   Stream<List<Salik>> _remoteSaliksInGender(String? gender) {
+    if (FirebaseAuth.instance.currentUser == null) {
+      return Stream.value(const <Salik>[]);
+    }
+
     Query<Map<String, dynamic>> query = _firestore.collection('saliks');
     if (gender != null) {
       query = query.where('genderId', isEqualTo: gender);
@@ -208,6 +217,7 @@ class SalikRepository {
   }
 
   Future<List<Salik>> _fetchRemoteSaliksInGender(String? gender) async {
+    if (FirebaseAuth.instance.currentUser == null) return const [];
     Query<Map<String, dynamic>> query = _firestore.collection('saliks');
     if (gender != null) {
       query = query.where('genderId', isEqualTo: gender);
@@ -220,6 +230,7 @@ class SalikRepository {
 
   Future<Salik?> _fetchRemoteSalik(String id) async {
     if (!await _connectivity.isOnline) return null;
+    if (FirebaseAuth.instance.currentUser == null) return null;
     try {
       final snap = await _firestore.collection('saliks').doc(id).get();
       if (!snap.exists) return null;
@@ -604,9 +615,25 @@ class SalikRepository {
     }
   }
 
-  Future<void> deleteSalik(String id, {UserSession? session}) async {
-    if (session != null && !AccessControl.canDelete(session.role)) {
-      throw SalikPermissionException('Cannot delete salik');
+  Future<void> deleteSalik(
+    String id, {
+    UserSession? session,
+    bool duplicateCleanup = false,
+  }) async {
+    if (session != null) {
+      final allowed = duplicateCleanup
+          ? AccessControl.canResolveDuplicates(session.role)
+          : AccessControl.canDelete(session.role);
+      if (!allowed) {
+        throw SalikPermissionException('Cannot delete salik');
+      }
+      if (duplicateCleanup) {
+        final salik = await resolveSalik(id);
+        final gender = AccessControl.genderFilter(session);
+        if (salik != null && gender != null && salik.genderId != gender) {
+          throw SalikPermissionException('Gender scope mismatch');
+        }
+      }
     }
 
     var existing = await _db.getSalikById(id);
@@ -655,6 +682,70 @@ class SalikRepository {
           modifiedDate: DateTime.now().toIso8601String().split('T').first,
         );
     await updateSalik(updated, session: session);
+  }
+
+  Stream<List<SalikDuplicateGroup>> watchDuplicateGroups(UserSession? session) {
+    if (session == null || !AccessControl.canResolveDuplicates(session.role)) {
+      return Stream.value([]);
+    }
+    return watchAllSaliksInScope(session).map(findSalikDuplicateGroups);
+  }
+
+  Stream<List<Salik>> watchAllSaliksInScope(UserSession session) {
+    final gender = AccessControl.genderFilter(session);
+    bool include(Salik salik) => !salik.isRejected;
+
+    return watchMergedSaliks(
+      onlineStream: _connectivity.onlineStream,
+      remoteAccessStream: _remoteSalikAccessStream(session),
+      localStream: _db.watchSaliks(genderFilter: gender),
+      remoteStreamFactory: () => _remoteSaliksInGender(gender),
+      merge: (remote, local, online) => mergeSalikOutbox(
+        remote: online ? remote : const [],
+        localRows: local,
+        includeRemote: include,
+        includeLocal: include,
+        includeSyncedLocal: true,
+      ),
+    );
+  }
+
+  Future<void> mergeDuplicateSaliks({
+    required UserSession session,
+    required String keepSalikId,
+    required List<String> removeSalikIds,
+  }) async {
+    if (!AccessControl.canResolveDuplicates(session.role)) {
+      throw SalikPermissionException('Cannot resolve duplicates');
+    }
+
+    final keeper = await resolveSalik(keepSalikId);
+    if (keeper == null) {
+      throw SalikPermissionException('Salik not found');
+    }
+
+    final gender = AccessControl.genderFilter(session);
+    if (gender != null && keeper.genderId != gender) {
+      throw SalikPermissionException('Gender scope mismatch');
+    }
+
+    var merged = keeper;
+    final toRemove = <String>{};
+    for (final id in removeSalikIds) {
+      if (id == keepSalikId) continue;
+      final other = await resolveSalik(id);
+      if (other == null) continue;
+      if (gender != null && other.genderId != gender) continue;
+      merged = mergeSalikRecords(merged, other);
+      toRemove.add(id);
+    }
+
+    if (toRemove.isEmpty) return;
+
+    await updateSalik(merged, session: session);
+    for (final id in toRemove) {
+      await deleteSalik(id, session: session, duplicateCleanup: true);
+    }
   }
 
   Future<void> _persistSalik(Salik salik, {required String syncStatus}) async {

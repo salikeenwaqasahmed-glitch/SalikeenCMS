@@ -78,7 +78,7 @@ class RoleChip extends StatelessWidget {
     switch (role) {
       case UserRole.admin:
         color = AppTheme.primaryColor;
-      case UserRole.genderAdmin:
+      case UserRole.approval:
         color = Colors.orange;
       case UserRole.editor:
       case UserRole.crudUser:

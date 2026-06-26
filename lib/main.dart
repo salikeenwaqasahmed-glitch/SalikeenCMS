@@ -10,7 +10,6 @@ import 'core/data/local_data_seed.dart';
 import 'core/database/app_database.dart';
 import 'core/localization/app_localizations.dart';
 import 'core/network/connectivity_service.dart';
-import 'core/providers/locale_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/sync/sync_service.dart';
@@ -56,8 +55,8 @@ class SalikManagementApp extends ConsumerWidget {
     ref.watch(appDatabaseHydrationProvider);
 
     final router = ref.watch(appRouterProvider);
-    final locale = ref.watch(localeProvider);
     final themeMode = ref.watch(themeModeProvider);
+    const locale = Locale('en');
     final l10n = AppLocalizations(locale);
 
     return MaterialApp.router(
@@ -67,23 +66,22 @@ class SalikManagementApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
       locale: locale,
-      supportedLocales: const [
-        Locale('en'),
-        Locale('ur'),
-      ],
+      supportedLocales: const [Locale('en')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
       builder: (context, child) {
+        final signingIn = ref.watch(authControllerProvider).isLoading;
         final auth = ref.watch(authStateProvider);
+        final bootstrapping = auth.isLoading;
         return Directionality(
-          textDirection: l10n.textDirection,
+          textDirection: TextDirection.ltr,
           child: Stack(
             children: [
               if (child != null) child,
-              if (auth.isLoading)
+              if (bootstrapping || signingIn)
                 const ColoredBox(
                   color: AppTheme.primaryColor,
                   child: AppLoadingPage(color: Colors.white),

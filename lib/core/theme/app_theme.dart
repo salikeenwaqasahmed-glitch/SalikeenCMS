@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'app_spacing.dart';
+import 'app_text_styles.dart';
 
 class AppTheme {
   static const primaryColor = Color(0xFF003527);
@@ -28,9 +28,10 @@ class AppTheme {
       ),
       scaffoldBackgroundColor:
           isDark ? const Color(0xFF0E1210) : scaffoldLightBg,
-      textTheme: GoogleFonts.interTextTheme(
-        ThemeData(brightness: brightness).textTheme,
-      ),
+      textTheme: ThemeData(brightness: brightness).textTheme.apply(
+            fontFamily: 'Roboto',
+            fontFamilyFallback: const ['sans-serif'],
+          ),
     );
 
     return base.copyWith(
@@ -39,7 +40,7 @@ class AppTheme {
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.inter(
+        titleTextStyle: AppTextStyles.inter(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: Colors.white,
@@ -52,7 +53,7 @@ class AppTheme {
             : primaryColor.withValues(alpha: 0.12),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
-          return GoogleFonts.inter(
+          return AppTextStyles.inter(
             fontSize: 12,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             color: selected
@@ -80,7 +81,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          textStyle: AppTextStyles.inter(fontWeight: FontWeight.w600),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(

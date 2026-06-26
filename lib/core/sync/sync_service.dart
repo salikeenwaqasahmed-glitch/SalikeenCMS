@@ -173,103 +173,39 @@ class SyncService {
     await _adoptRemoteApprovalAhead();
     await _pushQueue(resolved);
     await _finalizeSyncQueue();
-    await pullFromFirestore(resolved);
+    try {
+      await pullFromFirestore(resolved);
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied') rethrow;
+      debugPrint('hydrate pull skipped: ${e.code} ${e.message}');
+    }
     await _purgeLocalStaleQueue();
     await _finalizeSyncQueue();
   }
 
   /// Links Firebase Auth uid to Firestore users/{uid} — required by security rules.
   Future<UserSession?> _ensureUserProfile(UserSession? session) async {
-    final authUser = _auth.currentUser;
-    if (authUser == null) return session;
-
-    final uid = authUser.uid;
-    final ref = _firestore.collection('users').doc(uid);
-    final doc = await ref.get();
-
-    if (doc.exists) {
-      var profile = UserSession.fromMap(uid, doc.data()!);
-      final email = LocalAuthStore.normalizeEmail(
-        authUser.email ?? session?.email ?? profile.email,
-      );
-      final demo = LocalUserSeed.profileForEmail(email);
-      final local =
-          session ?? await _localAuth.getUserByEmail(email) ?? demo;
-      if (local != null &&
-          LocalAuthStore.normalizeEmail(local.email) == email &&
-          _needsProfileRepair(local, profile, demo)) {
-        profile = UserSession(
-          uid: uid,
-          name: local.name.isNotEmpty ? local.name : profile.name,
-          email: email,
-          role: local.role,
-          gender: UserSession.normalizeGender(
-            local.gender.isNotEmpty ? local.gender : profile.gender,
-          ),
-          avatar: profile.avatar,
-        );
-        try {
-          await ref.set(profile.toMap(), SetOptions(merge: true));
-          final repaired = await ref.get(const GetOptions(source: Source.server));
-          if (repaired.exists) {
-            profile = UserSession.fromMap(uid, repaired.data()!);
-          }
-          debugPrint(
-            'Repaired users/$uid → role=${profile.role.toFirestore()} gender=${profile.gender}',
-          );
-        } on FirebaseException catch (e) {
-          debugPrint('Profile repair denied users/$uid: ${e.code} ${e.message}');
-        }
-      }
-      await _localAuth.saveUser(profile);
-      await _localAuth.clearActiveOfflineUid();
-      return profile;
-    }
+    if (_auth.currentUser == null) return session;
 
     final email = LocalAuthStore.normalizeEmail(
-      authUser.email ?? session?.email ?? '',
+      _auth.currentUser!.email ?? session?.email ?? '',
     );
-    if (email.isEmpty || session == null) {
-      debugPrint('Sync blocked: no users/$uid profile in Firestore');
+    final hint = session ??
+        await _localAuth.getUserByEmail(email) ??
+        LocalUserSeed.profileForEmail(email);
+    if (hint == null) {
+      debugPrint('Sync blocked: no profile source for ${_auth.currentUser!.uid}');
       return null;
     }
 
-    final profile = UserSession(
-      uid: uid,
-      name: session.name,
-      email: email,
-      role: session.role,
-      gender: session.gender,
-    );
-    await ref.set(profile.toMap());
-    await _localAuth.saveUser(profile);
-    await _localAuth.clearActiveOfflineUid();
-    debugPrint('Created Firestore users/$uid from local profile');
-    return profile;
-  }
-
-  bool _shouldRepairUserProfile(UserSession local, UserSession remote) {
-    if (AccessControl.canApprove(local.role) &&
-        !AccessControl.canApprove(remote.role)) {
-      return true;
+    try {
+      return await _authRepo.syncUserProfileWithFirebase(hint);
+    } on FirebaseException catch (e) {
+      debugPrint(
+        'Profile sync denied users/${_auth.currentUser!.uid}: ${e.code} ${e.message}',
+      );
+      return null;
     }
-    if (remote.gender.trim().isEmpty && local.gender.trim().isNotEmpty) {
-      return true;
-    }
-    return false;
-  }
-
-  bool _needsProfileRepair(
-    UserSession local,
-    UserSession remote,
-    UserSession? demo,
-  ) {
-    if (_shouldRepairUserProfile(local, remote)) return true;
-    if (demo == null) return false;
-    if (local.role != remote.role) return true;
-    final remoteGender = UserSession.normalizeGender(remote.gender);
-    final localGender = UserSession.normalizeGender(local.gender);
-    return remoteGender != localGender && localGender.isNotEmpty;
   }
 
   Map<String, dynamic> _approvalPatch(Salik salik, String authUid) {
@@ -397,6 +333,10 @@ class SyncService {
       return salik.isPending && item.operation == 'create';
     }
 
+    if (item.operation == 'delete' && !AccessControl.canDelete(session.role)) {
+      return false;
+    }
+
     if (AccessControl.canApprove(session.role)) {
       return true;
     }
@@ -513,7 +453,7 @@ class SyncService {
         if (server.approvalStatus != salik.approvalStatus) {
           if (attempt < 2) continue;
           final uid = _auth.currentUser?.uid ?? '';
-          return 'Server still ${server.approvalStatus.toFirestore()} — users/$uid needs role genderAdmin + gender ${salik.genderId}';
+          return 'Server still ${server.approvalStatus.toFirestore()} — users/$uid needs role approval + gender ${salik.genderId}';
         }
         if (!salik.isPending &&
             (server.approvedByUid.isEmpty || server.approvedAt.isEmpty)) {
@@ -542,7 +482,7 @@ class SyncService {
       _auth,
       preferredEmail: sessionHint?.email,
     )) {
-      return 'Firebase login failed — sign in online as genderAdmin first';
+      return 'Firebase login failed — sign in online as approval first';
     }
 
     final session = await _ensureUserProfile(await _currentSession());
@@ -606,7 +546,7 @@ class SyncService {
     } on FirebaseException catch (e) {
       debugPrint('pushSalikNow ${salik.salikId}: ${e.code} ${e.message}');
       if (e.code == 'permission-denied') {
-        return 'Permission denied — users/$authUid needs role genderAdmin + gender ${salik.genderId} (have ${session.role.toFirestore()}/${session.gender})';
+        return 'Permission denied — users/$authUid needs role approval + gender ${salik.genderId} (have ${session.role.toFirestore()}/${session.gender})';
       }
       if (e.code == 'unavailable' || e.code == 'network-request-failed') {
         return 'No internet — connect and try again';
@@ -644,7 +584,7 @@ class SyncService {
     if (!AccessControl.canApprove(resolved.role)) {
       return (
         session: null,
-        error: 'Role is ${resolved.role} — need genderAdmin',
+        error: 'Role is ${resolved.role} — need approval',
       );
     }
     return (session: resolved, error: null);
@@ -984,10 +924,32 @@ class SyncService {
     for (final doc in snapshot.docs) {
       try {
         final city = City.fromMap(doc.data(), id: doc.id);
+        if (isDuplicateCanonicalCity(city)) {
+          final canonical = findCanonicalCityByName(
+            nameEn: city.cityName,
+            nameUr: city.cityNameUrdu,
+          );
+          if (canonical != null) {
+            await _db.upsertCity(
+              cityToCompanion(
+                City(
+                  cityId: doc.id,
+                  cityName: canonical.cityName,
+                  cityNameUrdu: canonical.cityNameUrdu,
+                ),
+                syncStatus: aliasSynced,
+              ),
+            );
+          }
+          continue;
+        }
         await _db.upsertCity(cityToCompanion(city));
       } catch (e) {
         debugPrint('Skip invalid city ${doc.id}: $e');
       }
+    }
+    for (final city in kCities) {
+      await _db.upsertCity(cityToCompanion(city));
     }
   }
 
@@ -1004,6 +966,22 @@ class SyncService {
     for (final doc in snapshot.docs) {
       try {
         final area = Area.fromMap(doc.data(), id: doc.id);
+        final canonical = findCanonicalAreaMatch(area);
+        if (canonical != null && canonical.areaId != area.areaId) {
+          await _db.upsertArea(
+            areaToCompanion(
+              Area(
+                areaId: doc.id,
+                cityId: area.cityId,
+                areaName: canonical.areaName,
+                areaNameUrdu: canonical.areaNameUrdu,
+                isMajor: canonical.isMajor,
+              ),
+              syncStatus: aliasSynced,
+            ),
+          );
+          continue;
+        }
         await _db.upsertArea(areaToCompanion(area));
       } catch (e) {
         debugPrint('Skip invalid area ${doc.id}: $e');

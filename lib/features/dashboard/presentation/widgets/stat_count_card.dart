@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/utils/icon_colors.dart';
 
 class StatCountCard extends StatelessWidget {
@@ -13,6 +12,8 @@ class StatCountCard extends StatelessWidget {
     this.color,
     this.expanded = true,
     this.width = 108,
+    this.labelMaxLines = 2,
+    this.labelFontSize = 11,
     this.onTap,
     this.colorIndex,
   });
@@ -24,6 +25,8 @@ class StatCountCard extends StatelessWidget {
   final int? colorIndex;
   final bool expanded;
   final double width;
+  final int labelMaxLines;
+  final double labelFontSize;
   final VoidCallback? onTap;
 
   Color get _iconColor {
@@ -34,7 +37,6 @@ class StatCountCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
     final iconColor = _iconColor;
     final card = Card(
       clipBehavior: Clip.antiAlias,
@@ -53,7 +55,7 @@ class StatCountCard extends StatelessWidget {
               Text(
                 '$count',
                 style: AppTextStyles.forLocale(
-                  l10n.isUrdu,
+                  false,
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
                   color: iconColor,
@@ -64,11 +66,12 @@ class StatCountCard extends StatelessWidget {
                 label,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: labelFontSize,
                   color: Colors.grey.shade600,
                   fontWeight: FontWeight.w600,
+                  height: 1.2,
                 ),
-                maxLines: 2,
+                maxLines: labelMaxLines,
                 overflow: TextOverflow.ellipsis,
               ),
             ],

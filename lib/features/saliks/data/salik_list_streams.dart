@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../../../core/database/app_database.dart';
 import '../domain/entities/salik.dart';
 
@@ -44,6 +46,7 @@ List<Salik> mergeSalikOutbox({
 
 Stream<List<Salik>> watchMergedSaliks({
   required Stream<bool> onlineStream,
+  required Stream<bool> remoteAccessStream,
   required Stream<List<LocalSalik>> localStream,
   required Stream<List<Salik>> Function() remoteStreamFactory,
   required List<Salik> Function(
@@ -56,9 +59,11 @@ Stream<List<Salik>> watchMergedSaliks({
   StreamSubscription<List<LocalSalik>>? localSub;
   StreamSubscription<List<Salik>>? remoteSub;
   StreamSubscription<bool>? onlineSub;
+  StreamSubscription<bool>? remoteAccessSub;
   var latestLocal = <LocalSalik>[];
   var latestRemote = <Salik>[];
   var online = true;
+  var remoteAccess = false;
 
   void emit() {
     if (controller.isClosed) return;
@@ -68,7 +73,7 @@ Stream<List<Salik>> watchMergedSaliks({
   void attachRemote() {
     remoteSub?.cancel();
     remoteSub = null;
-    if (!online) {
+    if (!online || !remoteAccess) {
       latestRemote = [];
       emit();
       return;
@@ -78,7 +83,11 @@ Stream<List<Salik>> watchMergedSaliks({
         latestRemote = remote;
         emit();
       },
-      onError: controller.addError,
+      onError: (Object e, StackTrace st) {
+        debugPrint('Remote saliks stream error: $e\n$st');
+        latestRemote = const [];
+        emit();
+      },
     );
   }
 
@@ -99,11 +108,20 @@ Stream<List<Salik>> watchMergedSaliks({
         },
         onError: controller.addError,
       );
+      remoteAccessSub = remoteAccessStream.listen(
+        (value) {
+          remoteAccess = value;
+          attachRemote();
+          emit();
+        },
+        onError: controller.addError,
+      );
     },
     onCancel: () async {
       await localSub?.cancel();
       await remoteSub?.cancel();
       await onlineSub?.cancel();
+      await remoteAccessSub?.cancel();
     },
   );
 

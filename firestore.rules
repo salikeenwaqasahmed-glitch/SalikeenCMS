@@ -1,5 +1,5 @@
 rules_version = '2';
-// Salik CRM — Firestore security rules
+// Salikeen CMS — Firestore security rules
 //
 // OFFLINE-FIRST WORKFLOW (matches app):
 //
@@ -8,19 +8,19 @@ rules_version = '2';
 //    - If online → push Firestore: approvalStatus=pending, isActive=false
 //    - Cannot update or delete after submit
 //
-// 2. GENDER ADMIN (own gender only)
+// 2. APPROVAL (own gender only)
 //    - Read all saliks in gender (pending + approved + rejected)
 //    - Approve/reject pending → local DB first
 //    - If online → push approval fields to Firestore
-//    - CRUD on approved saliks in own gender
+//    - Create / update / approve / reject on own gender (no delete)
 //    - Can create salik directly as approved
 //
 // 3. ADMIN (all genders)
-//    - Everything genderAdmin can do, across Male + Female
+//    - Everything approval role can do, across Male + Female
 //    - See pending queue for all genders, approve/reject, CRUD, delete
 //    - Create salik directly as approved
 //
-// Roles (users/{uid}.role): admin | genderAdmin | editor | crudUser (legacy → editor)
+// Roles (users/{uid}.role): admin | approval | editor | crudUser (legacy → editor)
 // Salik fields: approvalStatus pending|approved|rejected, approvedByUid/Name/At on decision
 //
 // Deploy: firebase deploy --only firestore:rules
@@ -51,13 +51,13 @@ service cloud.firestore {
         && userRole() in ['editor', 'crudUser'];
     }
 
-    function isGenderAdmin() {
+    function isApprovalRole() {
       return signedIn() && hasUserDoc()
-        && userRole() in ['genderAdmin', 'gender_admin', 'GenderAdmin'];
+        && userRole() in ['approval', 'genderAdmin', 'gender_admin', 'GenderAdmin'];
     }
 
     function isApprover() {
-      return isAdmin() || isGenderAdmin();
+      return isAdmin() || isApprovalRole();
     }
 
     function userGender() {
@@ -82,7 +82,7 @@ service cloud.firestore {
       return !(key in data) || data[key] == null || data[key] is string;
     }
 
-    // Read: admin = all genders; genderAdmin/editor = own gender (incl. pending queue).
+    // Read: admin = all genders; approval/editor = own gender (incl. pending queue).
     // Allow get() on missing doc so create/sync can check existence before set.
     function canReadSalikDoc(salikId) {
       return isAdmin()
@@ -95,7 +95,7 @@ service cloud.firestore {
       return isAdmin() || (hasUserDoc() && genderMatches(salikGender(), userGender()));
     }
 
-    // Write gender scope: admin = any; genderAdmin/editor = own gender only.
+    // Write gender scope: admin = any; approval/editor = own gender only.
     function canWriteSalikGender() {
       return isAdmin() || (hasUserDoc() && genderMatches(incomingSalikGender(), userGender()));
     }
@@ -146,7 +146,7 @@ service cloud.firestore {
         && optionalString(data, 'approvedAt');
     }
 
-    // Admin / genderAdmin: skip queue — create approved directly.
+    // Admin / approval: skip queue — create approved directly.
     function approverDirectCreate() {
       return isApprover()
         && request.resource.data.approvalStatus == 'approved'
@@ -163,7 +163,7 @@ service cloud.firestore {
 
     // --- UPDATE ---
 
-    // genderAdmin / admin step 2: pending (or legacy missing field) → approved | rejected.
+    // approval / admin step 2: pending (or legacy missing field) → approved | rejected.
     function isApprovalTransition() {
       let wasPending = !('approvalStatus' in resource.data)
         || resource.data.approvalStatus == 'pending';
@@ -215,41 +215,51 @@ service cloud.firestore {
         );
     }
 
-    // Demo gender-admin accounts: allow self-upgrade editor → genderAdmin (offline seed mismatch).
-    function isSelfDemoGenderAdminUpgrade() {
-      return request.auth.uid == userId
+    // CMS staff: allow self-upgrade editor → approval (offline seed mismatch).
+    function isSelfDemoApprovalUpgrade(uid) {
+      return request.auth.uid == uid
         && resource.data.email in [
-          'femaleadmin@salikeen.com',
-          'maleadmin@salikeen.com'
+          'adil@cms.com',
+          'waheed@cms.com',
+          'usman@cms.com'
         ]
-        && request.resource.data.role == 'genderAdmin'
+        && request.resource.data.role == 'approval'
         && resource.data.role in ['editor', 'crudUser']
         && request.resource.data.gender in ['Male', 'Female'];
     }
 
-    // Demo staff: fix role/gender drift between local seed and Firestore profile.
+    // CMS staff: fix role/gender drift between local seed and Firestore profile.
     function isDemoStaffEmail(email) {
       return email in [
-        'admin@salikeen.com',
-        'maleadmin@salikeen.com',
-        'femaleadmin@salikeen.com',
-        'maleeditor@salikeen.com',
-        'femaleeditor@salikeen.com'
+        'naveed@cms.com',
+        'ayaz@cms.com',
+        'mawaz@cms.com',
+        'imran@cms.com',
+        'adil@cms.com',
+        'waheed@cms.com',
+        'usman@cms.com',
+        'sarkar@cms.com',
+        'waqas@cms.com'
       ];
     }
 
-    function isSelfDemoProfileRepair() {
-      return request.auth.uid == userId
+    function isSelfDemoProfileRepair(uid) {
+      return request.auth.uid == uid
         && isDemoStaffEmail(resource.data.email)
         && request.resource.data.email == resource.data.email
-        && request.resource.data.role in ['genderAdmin', 'editor', 'admin', 'crudUser']
+        && request.resource.data.role in ['approval', 'genderAdmin', 'editor', 'admin', 'crudUser']
         && request.resource.data.gender in ['Male', 'Female'];
     }
 
     // --- DELETE ---
 
     function canDeleteSalik() {
-      return signedIn() && (isAdmin() || (isGenderAdmin() && canReadSalik()));
+      return signedIn() && (
+        isAdmin()
+        || (isApprovalRole()
+          && hasUserDoc()
+          && genderMatches(salikGender(), userGender()))
+      );
     }
 
     match /users/{userId} {
@@ -260,11 +270,12 @@ service cloud.firestore {
       allow create: if signedIn() && request.auth.uid == userId
         && request.resource.data.email is string
         && request.resource.data.email.size() > 0
-        && request.resource.data.role in ['genderAdmin', 'editor', 'admin', 'crudUser']
+        && request.resource.data.role in ['approval', 'genderAdmin', 'editor', 'admin', 'crudUser']
         && request.resource.data.gender in ['Male', 'Female']
         && (
           !('email' in request.auth.token)
           || request.auth.token.email == request.resource.data.email
+          || isDemoStaffEmail(request.resource.data.email)
         );
       allow update: if signedIn() && (
         (request.auth.uid == userId
@@ -275,8 +286,8 @@ service cloud.firestore {
             || request.resource.data.email == request.auth.token.email
           ))
         || isAdmin()
-        || isSelfDemoGenderAdminUpgrade()
-        || isSelfDemoProfileRepair()
+        || isSelfDemoApprovalUpgrade(userId)
+        || isSelfDemoProfileRepair(userId)
       );
       allow delete: if signedIn() && isAdmin();
     }

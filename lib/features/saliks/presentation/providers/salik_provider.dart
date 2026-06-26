@@ -5,6 +5,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../data/salik_repository.dart';
 import '../../domain/entities/salik.dart';
+import '../../domain/entities/salik_duplicate_group.dart';
 
 /// Extra client-side gender guard for genderAdmin / editor (admin = all genders).
 List<Salik> scopeSaliksToSession(List<Salik> saliks, UserSession? session) {
@@ -14,6 +15,21 @@ List<Salik> scopeSaliksToSession(List<Salik> saliks, UserSession? session) {
 }
 
 enum SalikBrowseSegment { all, area, nafiAsbat, sahibMehfil }
+
+final duplicateSaliksStreamProvider =
+    StreamProvider<List<SalikDuplicateGroup>>((ref) {
+  final session = ref.watch(currentSessionProvider);
+  final repo = ref.watch(salikRepositoryProvider);
+  if (session == null || !AccessControl.canResolveDuplicates(session.role)) {
+    return Stream.value([]);
+  }
+  return repo.watchDuplicateGroups(session);
+});
+
+final duplicateSalikCountProvider = Provider<int>((ref) {
+  final groups = ref.watch(duplicateSaliksStreamProvider).valueOrNull ?? [];
+  return groups.length;
+});
 
 final saliksStreamProvider = StreamProvider<List<Salik>>((ref) {
   final session = ref.watch(currentSessionProvider);

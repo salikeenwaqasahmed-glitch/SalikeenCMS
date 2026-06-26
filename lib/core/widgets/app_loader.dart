@@ -88,7 +88,7 @@ class AppLoader extends StatelessWidget {
           message!,
           textAlign: TextAlign.center,
           style: AppTextStyles.forLocale(
-            Localizations.localeOf(context).languageCode == 'ur',
+            false,
             fontSize: 14,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),

@@ -34,9 +34,26 @@ class SalikDirectoryScreen extends ConsumerWidget {
     final pendingCount =
         canViewPending ? ref.watch(pendingCountProvider) : 0;
 
+    final canResolveDuplicates = session != null &&
+        AccessControl.canResolveDuplicates(session.role);
+    final duplicateCount = canResolveDuplicates
+        ? ref.watch(duplicateSalikCountProvider)
+        : 0;
+
     return AppScaffold(
       title: l10n.t('saliks'),
       actions: [
+        if (canResolveDuplicates)
+          IconButton(
+            icon: duplicateCount > 0
+                ? Badge(
+                    label: Text('$duplicateCount'),
+                    child: const Icon(Icons.copy_all_outlined),
+                  )
+                : const Icon(Icons.copy_all_outlined),
+            tooltip: l10n.t('duplicate_data'),
+            onPressed: () => context.push('/saliks/duplicates'),
+          ),
         if (canViewPending)
           IconButton(
             icon: PendingSaliksBadge(
@@ -120,26 +137,20 @@ class SalikDirectoryScreen extends ConsumerWidget {
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
                       final salik = filtered[index];
-                      final area = findAreaInList(
-                        salik.areaId,
-                        ref
-                                .watch(areasByCityProvider(salik.cityId))
-                                .valueOrNull ??
-                            [],
-                      );
+                      final area = ref
+                              .watch(areaByIdProvider(salik.areaId))
+                              .valueOrNull ??
+                          findAreaInList(
+                            salik.areaId,
+                            ref
+                                    .watch(areasByCityProvider(salik.cityId))
+                                    .valueOrNull ??
+                                [],
+                          );
                       return SalikListTile(
                         salik: salik,
-                        displayName: l10n.isUrdu
-                            ? salik.nameUrdu
-                            : salik.nameEnglish,
-                        displayFather: l10n.isUrdu
-                            ? salik.fatherNameUrdu
-                            : salik.fatherNameEnglish,
-                        areaName: area != null
-                            ? (l10n.isUrdu
-                                ? area.areaNameUrdu
-                                : area.areaName)
-                            : '',
+                        areaName: area?.areaName ?? '',
+                        areaNameUrdu: area?.areaNameUrdu ?? '',
                         statusBadge: salik.isPending
                             ? l10n.t('approval_pending')
                             : null,

@@ -16,6 +16,8 @@ const synced = 'synced';
 const pendingCreate = 'pendingCreate';
 const pendingUpdate = 'pendingUpdate';
 const pendingDelete = 'pendingDelete';
+/// Lookup-only row mapping a remote doc id to canonical city/area names.
+const aliasSynced = 'alias';
 
 class LocalUsers extends Table {
   TextColumn get uid => text()();

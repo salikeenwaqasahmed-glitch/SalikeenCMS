@@ -19,7 +19,6 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -32,7 +31,7 @@ class EmptyState extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: AppTextStyles.forLocale(
-                l10n.isUrdu,
+                false,
                 fontSize: 16,
                 color: Colors.grey.shade600,
               ),

@@ -19,10 +19,15 @@ void main() {
       expect(AccessControl.canViewPending(UserRole.editor), isTrue);
     });
 
-    test('genderAdmin can approve and CRUD', () {
-      expect(AccessControl.canApprove(UserRole.genderAdmin), isTrue);
-      expect(AccessControl.canUpdate(UserRole.genderAdmin), isTrue);
-      expect(AccessControl.canDelete(UserRole.genderAdmin), isTrue);
+    test('approval role can approve and update but not delete', () {
+      expect(AccessControl.canApprove(UserRole.approval), isTrue);
+      expect(AccessControl.canUpdate(UserRole.approval), isTrue);
+      expect(AccessControl.canDelete(UserRole.approval), isFalse);
+    });
+
+    test('legacy genderAdmin maps to approval via fromString', () {
+      expect(UserRole.fromString('genderAdmin'), UserRole.approval);
+      expect(UserRole.fromString('approval'), UserRole.approval);
     });
 
     test('crudUser maps to editor permissions via fromString', () {
@@ -108,23 +113,23 @@ void main() {
       expect(approvedOnly, isEmpty);
     });
 
-    test('genderAdmin gender filter scopes to own gender', () {
-      const femaleAdmin = UserSession(
-        uid: 'uid-f',
-        name: 'Female Admin',
-        email: 'femaleadmin@salikeen.com',
-        role: UserRole.genderAdmin,
-        gender: 'Female',
+    test('approval role gender filter scopes to own gender', () {
+      const approvalUser = UserSession(
+        uid: 'uid-a',
+        name: 'Adil',
+        email: 'adil@cms.com',
+        role: UserRole.approval,
+        gender: 'Male',
       );
-      expect(AccessControl.genderFilter(femaleAdmin), 'Female');
-      expect(AccessControl.isGenderAdmin(femaleAdmin.role), isTrue);
+      expect(AccessControl.genderFilter(approvalUser), 'Male');
+      expect(AccessControl.isApprovalRole(approvalUser.role), isTrue);
 
       final saliks = [
         _sampleSalik(id: 'm1', genderId: 'Male'),
         _sampleSalik(id: 'f1', genderId: 'Female'),
       ];
-      final scoped = scopeSaliksToSession(saliks, femaleAdmin);
-      expect(scoped.map((s) => s.salikId), ['f1']);
+      final scoped = scopeSaliksToSession(saliks, approvalUser);
+      expect(scoped.map((s) => s.salikId), ['m1']);
     });
 
     test('mergeSalikOutbox uses synced local cache when offline', () async {

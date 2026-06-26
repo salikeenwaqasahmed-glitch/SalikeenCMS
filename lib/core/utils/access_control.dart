@@ -4,26 +4,28 @@ import '../../features/auth/domain/user_session.dart';
 class AccessControl {
   static bool canCreate(UserRole role) =>
       role == UserRole.admin ||
-      role == UserRole.genderAdmin ||
+      role == UserRole.approval ||
       role == UserRole.editor;
 
   static bool canUpdate(UserRole role) =>
-      role == UserRole.admin || role == UserRole.genderAdmin;
+      role == UserRole.admin || role == UserRole.approval;
 
-  static bool canDelete(UserRole role) =>
-      role == UserRole.admin || role == UserRole.genderAdmin;
+  static bool canDelete(UserRole role) => role == UserRole.admin;
+
+  static bool canResolveDuplicates(UserRole role) =>
+      role == UserRole.admin || role == UserRole.approval;
 
   static bool canApprove(UserRole role) =>
-      role == UserRole.admin || role == UserRole.genderAdmin;
+      role == UserRole.admin || role == UserRole.approval;
 
   static bool canViewPending(UserRole role) =>
       role == UserRole.admin ||
-      role == UserRole.genderAdmin ||
+      role == UserRole.approval ||
       role == UserRole.editor;
 
   static bool isEditor(UserRole role) => role == UserRole.editor;
 
-  static bool isGenderAdmin(UserRole role) => role == UserRole.genderAdmin;
+  static bool isApprovalRole(UserRole role) => role == UserRole.approval;
 
   static bool canViewAllGenders(UserRole role) => role == UserRole.admin;
 

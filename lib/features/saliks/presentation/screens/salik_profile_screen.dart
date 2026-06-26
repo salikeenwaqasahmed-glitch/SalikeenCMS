@@ -7,7 +7,7 @@ import '../../../../core/router/form_navigation.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/contact_launcher.dart';
-import '../../../../core/utils/localized_text.dart';
+import '../../../../core/utils/saved_bilingual_text.dart';
 import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/utils/submitter_display.dart';
 import '../../../../core/widgets/app_loader.dart';
@@ -82,10 +82,14 @@ class _SalikProfileScreenState extends ConsumerState<SalikProfileScreen> {
               return EmptyState(message: l10n.t('not_found'));
             }
 
-            final city = findCityInList(salik.cityId, cities);
-            final areas =
-                ref.watch(areasByCityProvider(salik.cityId)).valueOrNull ?? [];
-            final area = findAreaInList(salik.areaId, areas);
+            final city =
+                ref.watch(cityByIdProvider(salik.cityId)).valueOrNull ??
+                    findCityInList(salik.cityId, cities);
+            final area = ref.watch(areaByIdProvider(salik.areaId)).valueOrNull ??
+                findAreaInList(
+                  salik.areaId,
+                  ref.watch(areasByCityProvider(salik.cityId)).valueOrNull ?? [],
+                );
             final samePhone =
                 phonesMatch(salik.mobileNumber, salik.whatsappNumber);
 
@@ -121,17 +125,10 @@ class _SalikProfileScreenState extends ConsumerState<SalikProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         ProfileHeader(
-                          name: localizedSalikName(
-                            nameEnglish: salik.nameEnglish,
-                            nameUrdu: salik.nameUrdu,
-                            preferUrdu: l10n.isUrdu,
-                          ),
-                          subtitle:
-                              '${l10n.t('father_name')}: ${localizedFatherName(
-                            fatherNameEnglish: salik.fatherNameEnglish,
-                            fatherNameUrdu: salik.fatherNameUrdu,
-                            preferUrdu: l10n.isUrdu,
-                          )}',
+                          nameEnglish: salik.nameEnglish,
+                          nameUrdu: salik.nameUrdu,
+                          fatherNameEnglish: salik.fatherNameEnglish,
+                          fatherNameUrdu: salik.fatherNameUrdu,
                           badge: headerBadge,
                         ),
                         _AddedByLine(salik: salik),
@@ -213,17 +210,19 @@ class _SalikProfileScreenState extends ConsumerState<SalikProfileScreen> {
                             InfoRow(
                               icon: Icons.location_city,
                               label: l10n.t('city'),
-                              value: l10n.isUrdu
-                                  ? (city?.cityNameUrdu ?? salik.cityId)
-                                  : (city?.cityName ?? salik.cityId),
+                              value: savedCityLabel(
+                                cityName: city?.cityName ?? '',
+                                cityNameUrdu: city?.cityNameUrdu ?? '',
+                              ),
                               colorIndex: 0,
                             ),
                             InfoRow(
                               icon: Icons.map,
                               label: l10n.t('area'),
-                              value: l10n.isUrdu
-                                  ? (area?.areaNameUrdu ?? salik.areaId)
-                                  : (area?.areaName ?? salik.areaId),
+                              value: savedAreaLabel(
+                                areaName: area?.areaName ?? '',
+                                areaNameUrdu: area?.areaNameUrdu ?? '',
+                              ),
                               colorIndex: 1,
                             ),
                           ],

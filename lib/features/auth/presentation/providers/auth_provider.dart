@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -35,22 +36,53 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
 
   Future<void> signIn(String email, String password) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    try {
       final session = await _repo.signIn(email, password);
+      state = const AsyncData(null);
+      _runPostLoginWork(session, password);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
+  void _runPostLoginWork(UserSession session, String password) {
+    Future.microtask(() async {
       final online = await _ref.read(connectivityServiceProvider).isOnline;
-      if (online) {
-        await _ref.read(syncServiceProvider).hydrate(session);
-      }
-      if (session.role == UserRole.admin && online) {
-        try {
-          await SeedService(
-            FirebaseFirestore.instance,
-            FirebaseAuth.instance,
-          ).seedIfNeeded();
-          _ref.read(seedMessageProvider.notifier).state = 'seed_success';
-        } catch (_) {
-          _ref.read(seedMessageProvider.notifier).state = 'seed_failed';
+      if (!online || _repo.currentUser == null) return;
+
+      _repo.pinSession(session);
+      try {
+        if (session.role == UserRole.admin) {
+          try {
+            final seed = SeedService(
+              FirebaseFirestore.instance,
+              FirebaseAuth.instance,
+            );
+            await seed.seedIfNeeded();
+            await seed.ensureStaffUsers(
+              restoreEmail: session.email,
+              restorePassword: password,
+            );
+            _ref.read(seedMessageProvider.notifier).state = 'seed_success';
+          } catch (e, st) {
+            debugPrint('post-login seed failed: $e\n$st');
+            _ref.read(seedMessageProvider.notifier).state = 'seed_failed';
+          }
         }
+
+        try {
+          await _repo.syncUserProfileWithFirebase(session, password: password);
+        } catch (e, st) {
+          debugPrint('post-login profile sync failed: $e\n$st');
+        }
+
+        try {
+          await _ref.read(syncServiceProvider).hydrate(session);
+        } catch (e, st) {
+          debugPrint('post-login hydrate failed: $e\n$st');
+        }
+      } finally {
+        _repo.unpinSession();
       }
     });
   }

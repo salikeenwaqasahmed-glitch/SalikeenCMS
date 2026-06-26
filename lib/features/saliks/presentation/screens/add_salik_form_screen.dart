@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/data/country_codes.dart';
+import '../../../../core/data/reference_data.dart';
 import '../../../../core/sync/sync_service.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/router/form_navigation.dart';
@@ -16,6 +18,7 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/pakistan_phone_field.dart';
 import '../../../../core/widgets/whatsapp_icon.dart';
+import '../../../../core/utils/phone_number_utils.dart';
 import '../../../../core/utils/pakistan_phone.dart';
 import '../../../../core/widgets/salik_widgets.dart';
 import '../../../../core/widgets/urdu_field.dart';
@@ -54,6 +57,8 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
   final _fatherUrdu = TextEditingController();
   final _mobile = TextEditingController();
   final _whatsapp = TextEditingController();
+  CountryDialCode _mobileCountry = kDefaultCountry;
+  CountryDialCode _whatsappCountry = kDefaultCountry;
   final _refName = TextEditingController();
   final _citySearch = TextEditingController();
   final _areaSearch = TextEditingController();
@@ -107,13 +112,27 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     super.dispose();
   }
 
-  void _populateFromSalik(Salik salik, List<City> cities, List<Area> areas) {
+  Future<void> _populateFromSalik(
+    Salik salik,
+    List<City> cities,
+    List<Area> areas,
+  ) async {
     _nameEng.text = salik.nameEnglish;
     _nameUrdu.text = salik.nameUrdu;
     _fatherEng.text = salik.fatherNameEnglish;
     _fatherUrdu.text = salik.fatherNameUrdu;
-    _mobile.text = PakistanPhone.formatFromStored(salik.mobileNumber);
-    _whatsapp.text = PakistanPhone.formatFromStored(salik.whatsappNumber);
+    final mobileParsed = PhoneNumberUtils.parseStored(salik.mobileNumber);
+    final whatsappParsed = PhoneNumberUtils.parseStored(salik.whatsappNumber);
+    _mobileCountry = mobileParsed.country;
+    _whatsappCountry = whatsappParsed.country;
+    _mobile.text = PhoneNumberUtils.formatNationalDisplay(
+      mobileParsed.country,
+      mobileParsed.nationalDigits,
+    );
+    _whatsapp.text = PhoneNumberUtils.formatNationalDisplay(
+      whatsappParsed.country,
+      whatsappParsed.nationalDigits,
+    );
     _refName.text = salik.referenceName;
     _cityId = salik.cityId;
     _areaId = salik.areaId;
@@ -124,11 +143,13 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     _sahibMehfil = salik.isSahibEMehfil;
     _whatsappSameAsMobile = SalikRepository.normalizePhone(salik.mobileNumber) ==
         SalikRepository.normalizePhone(salik.whatsappNumber);
-    _syncLocationLabels(cities, areas);
+    await _syncLocationLabels(cities, areas);
   }
 
-  void _syncLocationLabels(List<City> cities, List<Area> areas) {
-    final city = cities.where((c) => c.cityId == _cityId).firstOrNull;
+  Future<void> _syncLocationLabels(List<City> cities, List<Area> areas) async {
+    final repo = ref.read(areaRepositoryProvider);
+    final city =
+        findCityInList(_cityId, cities) ?? await repo.resolveCity(_cityId);
     if (city != null) {
       _citySearch.text = localizedCityName(
         cityName: city.cityName,
@@ -136,7 +157,8 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
         preferUrdu: _formLocale == 'ur',
       );
     }
-    final area = areas.where((a) => a.areaId == _areaId).firstOrNull;
+    final area =
+        findAreaInList(_areaId, areas) ?? await repo.resolveArea(_areaId);
     if (area != null) {
       _areaSearch.text = localizedAreaName(
         areaName: area.areaName,
@@ -168,14 +190,24 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
 
   bool _validateAll(AppLocalizations l10n) {
     if (!_hasNameInOneLanguage() ||
-        FormValidators.phoneField(_mobile.text, l10n) != null ||
+        FormValidators.phoneField(
+              _mobile.text,
+              l10n,
+              country: _mobileCountry,
+            ) !=
+            null ||
         _dateBaith.trim().isEmpty ||
         _cityId.isEmpty ||
         _areaId.isEmpty) {
       return false;
     }
     if (!_whatsappSameAsMobile &&
-        FormValidators.optionalPhone(_whatsapp.text, l10n) != null) {
+        FormValidators.optionalPhone(
+              _whatsapp.text,
+              l10n,
+              country: _whatsappCountry,
+            ) !=
+            null) {
       return false;
     }
     return true;
@@ -206,12 +238,12 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     setState(() => _loading = true);
     final today = DateTime.now().toIso8601String().split('T').first;
     final effectiveGender = AccessControl.effectiveGender(session, _gender);
-    final mobile = PakistanPhone.toStored(_mobile.text);
+    final mobile = PhoneNumberUtils.toStored(_mobileCountry, _mobile.text);
     final whatsapp = _whatsappSameAsMobile
         ? mobile
         : (_whatsapp.text.trim().isEmpty
             ? mobile
-            : PakistanPhone.toStored(_whatsapp.text));
+            : PhoneNumberUtils.toStored(_whatsappCountry, _whatsapp.text));
 
     final salik = Salik(
       salikId: widget.salikId ?? '',
@@ -359,6 +391,26 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     } else if (result.startsWith('new:')) {
       final name = result.substring(4);
       if (name.isEmpty) return;
+      final existingInList = cities.cast<City?>().firstWhere(
+            (city) =>
+                city != null &&
+                cityMatchesNames(
+                  city,
+                  nameEn: isUrdu ? '' : name,
+                  nameUr: isUrdu ? name : '',
+                ),
+            orElse: () => null,
+          );
+      if (existingInList != null) {
+        setState(() {
+          _cityId = existingInList.cityId;
+          _areaId = '';
+          _areaSearch.clear();
+          _citySearch.text =
+              isUrdu ? existingInList.cityNameUrdu : existingInList.cityName;
+        });
+        return;
+      }
       setState(() => _loading = true);
       try {
         final repo = ref.read(areaRepositoryProvider);
@@ -466,32 +518,6 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     }
   }
 
-  String _headerDisplayName(AppLocalizations fl10n) {
-    if (_formLocale == 'ur') {
-      final urdu = _nameUrdu.text.trim();
-      if (urdu.isNotEmpty) return urdu;
-      final english = _nameEng.text.trim();
-      if (english.isNotEmpty) return english;
-    } else {
-      final english = _nameEng.text.trim();
-      if (english.isNotEmpty) return english;
-      final urdu = _nameUrdu.text.trim();
-      if (urdu.isNotEmpty) return urdu;
-    }
-    return widget.isEditing ? fl10n.t('edit_salik') : fl10n.t('add_salik');
-  }
-
-  String _headerDisplayFather() {
-    if (_formLocale == 'ur') {
-      final urdu = _fatherUrdu.text.trim();
-      if (urdu.isNotEmpty) return urdu;
-      return _fatherEng.text.trim();
-    }
-    final english = _fatherEng.text.trim();
-    if (english.isNotEmpty) return english;
-    return _fatherUrdu.text.trim();
-  }
-
   Widget _buildGenderField(AppLocalizations fl10n, bool canPickGender) {
     if (canPickGender) {
       return DropdownButtonFormField<String>(
@@ -543,20 +569,30 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
 
     if (!_initialized && cities.isNotEmpty && _cityId.isEmpty) {
       _cityId = cities.first.cityId;
-      _syncLocationLabels(cities, areas);
+      unawaited(_syncLocationLabels(cities, areas));
+    }
+
+    if (_cityId.isNotEmpty) {
+      ref.listen(areasByCityProvider(_cityId), (previous, next) {
+        if (widget.isEditing && _initialized && next.hasValue) {
+          unawaited(_syncLocationLabels(cities, next.requireValue));
+        }
+      });
     }
 
     if (widget.isEditing && widget.salikId != null && !_initialized) {
       final salikAsync = ref.watch(salikByIdProvider(widget.salikId!));
       salikAsync.whenData((salik) {
         if (salik != null && !_initialized) {
-          _populateFromSalik(salik, cities, areas);
-          _initialized = true;
+          unawaited(() async {
+            await _populateFromSalik(salik, cities, areas);
+            if (mounted) setState(() => _initialized = true);
+          }());
         }
       });
     } else if (!_initialized && session != null) {
       _gender = UserSession.normalizeGender(session.gender);
-      _formLocale = l10n.isUrdu ? 'ur' : 'en';
+      _formLocale = 'en';
       _initialized = true;
     }
 
@@ -601,7 +637,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                   onSelected: (i) {
                     setState(() {
                       _formLocale = i == 1 ? 'ur' : 'en';
-                      _syncLocationLabels(cities, areas);
+                      unawaited(_syncLocationLabels(cities, areas));
                     });
                   },
                 ),
@@ -626,9 +662,10 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       ProfileHeader(
-                        name: _headerDisplayName(fl10n),
-                        subtitle:
-                            '${l10n.t('father_name')}: ${_headerDisplayFather()}',
+                        nameEnglish: _nameEng.text,
+                        nameUrdu: _nameUrdu.text,
+                        fatherNameEnglish: _fatherEng.text,
+                        fatherNameUrdu: _fatherUrdu.text,
                         badge: _sahibMehfil
                             ? Chip(
                                 label: Text(l10n.t('sahib_e_mehfil')),
@@ -692,53 +729,45 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                                 ? fl10n.t('required_field')
                                 : null,
                             builder: (field) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: IconColors.icon(
+                              return InkWell(
+                                onTap: () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate:
+                                        DateTime.tryParse(_dateBaith) ??
+                                            DateTime.now(),
+                                    firstDate: DateTime(1990),
+                                    lastDate: DateTime.now(),
+                                  );
+                                  if (picked != null) {
+                                    setState(() {
+                                      _dateBaith = picked
+                                          .toIso8601String()
+                                          .split('T')
+                                          .first;
+                                    });
+                                    field.didChange(_dateBaith);
+                                  }
+                                },
+                                child: InputDecorator(
+                                  decoration: InputDecoration(
+                                    labelText: fl10n.t('date_of_baith'),
+                                    suffixIcon: IconColors.icon(
                                       Icons.calendar_today,
                                       size: 20,
                                       colorIndex: 0,
                                     ),
-                                    title: Text(fl10n.t('date_of_baith')),
-                                    subtitle: Text(_dateBaith),
-                                    trailing: IconColors.icon(
-                                      Icons.chevron_right,
-                                      size: 18,
-                                    ),
-                                    onTap: () async {
-                                      final picked = await showDatePicker(
-                                        context: context,
-                                        initialDate:
-                                            DateTime.tryParse(_dateBaith) ??
-                                                DateTime.now(),
-                                        firstDate: DateTime(1990),
-                                        lastDate: DateTime.now(),
-                                      );
-                                      if (picked != null) {
-                                        setState(() {
-                                          _dateBaith = picked
-                                              .toIso8601String()
-                                              .split('T')
-                                              .first;
-                                        });
-                                        field.didChange(_dateBaith);
-                                      }
-                                    },
+                                    errorText: field.hasError
+                                        ? field.errorText
+                                        : null,
                                   ),
-                                  if (field.hasError)
-                                    Text(
-                                      field.errorText!,
-                                      style: TextStyle(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .error,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                ],
+                                  child: Text(
+                                    _dateBaith.isEmpty ? '—' : _dateBaith,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge,
+                                  ),
+                                ),
                               );
                             },
                           ),
@@ -765,10 +794,22 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                           PakistanPhoneFormField(
                             controller: _mobile,
                             labelText: fl10n.t('mobile'),
+                            selectedCountry: _mobileCountry,
+                            onCountryChanged: (country) {
+                              setState(() {
+                                _mobileCountry = country;
+                                if (_whatsappSameAsMobile) {
+                                  _whatsappCountry = country;
+                                }
+                              });
+                            },
                             prefixIcon: Icons.phone,
                             colorIndex: 0,
-                            validator: (v) =>
-                                FormValidators.phoneField(v, fl10n),
+                            validator: (v) => FormValidators.phoneField(
+                              v,
+                              fl10n,
+                              country: _mobileCountry,
+                            ),
                             onChanged: (_) => setState(() {}),
                           ),
                           SwitchListTile(
@@ -793,17 +834,26 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                               ),
                             ),
                             value: _whatsappSameAsMobile,
-                            onChanged: (v) =>
-                                setState(() => _whatsappSameAsMobile = v),
+                            onChanged: (v) => setState(() {
+                              _whatsappSameAsMobile = v;
+                              if (v) _whatsappCountry = _mobileCountry;
+                            }),
                           ),
                           if (!_whatsappSameAsMobile) ...[
                             const SizedBox(height: AppSpacing.sm),
                             PakistanPhoneFormField(
                               controller: _whatsapp,
                               labelText: fl10n.t('whatsapp'),
+                              selectedCountry: _whatsappCountry,
+                              onCountryChanged: (country) {
+                                setState(() => _whatsappCountry = country);
+                              },
                               prefix: const WhatsAppMessageIcon(size: 22),
-                              validator: (v) =>
-                                  FormValidators.optionalPhone(v, fl10n),
+                              validator: (v) => FormValidators.optionalPhone(
+                                v,
+                                fl10n,
+                                country: _whatsappCountry,
+                              ),
                             ),
                           ],
                         ],

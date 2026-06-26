@@ -6,7 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/local_auth_store.dart';
+import '../../../core/auth/local_user_seed.dart';
 import '../../../core/network/connectivity_service.dart';
+import '../../../core/utils/access_control.dart';
 import '../domain/user_session.dart';
 
 class ProfileNotFoundException implements Exception {
@@ -56,13 +58,127 @@ class AuthRepository {
   bool get isOfflineSession => _offlineSessionActive;
   bool _offlineSessionActive = false;
 
+  /// Keeps [sessionStream] on [session] while Firebase Auth is temporarily
+  /// switched (e.g. staff provisioning loop).
+  UserSession? _pinnedSession;
+
+  void pinSession(UserSession session) {
+    _pinnedSession = session;
+  }
+
+  void unpinSession() {
+    _pinnedSession = null;
+    _notifySessionChanged();
+  }
+
+  bool get isSessionPinned => _pinnedSession != null;
+
+  UserSession? _stickySession;
+
+  static bool _sameSession(UserSession? a, UserSession? b) {
+    if (identical(a, b)) return true;
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    return a.uid == b.uid && a.email == b.email;
+  }
+
+  UserSession? _commitSession(UserSession? session) {
+    if (session != null) _stickySession = session;
+    return session;
+  }
+
+  Future<UserSession> _finalizeOnlineSession(
+    UserSession profile, {
+    String? password,
+  }) async {
+    if (password != null) {
+      await _localAuth.rememberLogin(profile.email, password);
+    }
+    await _localAuth.setActiveOfflineUid(profile.uid);
+    _offlineSessionActive = false;
+    _maybeNotifySessionChanged(profile);
+    return _commitSession(profile)!;
+  }
+
+  void _maybeNotifySessionChanged(UserSession profile) {
+    if (_sameSession(_stickySession, profile)) {
+      _stickySession = profile;
+      return;
+    }
+    _stickySession = profile;
+    _notifySessionChanged();
+  }
+
+  /// Firestore salik rules need users/{uid}; only query when Auth matches session.
+  Future<bool> canQueryRemoteSaliks(UserSession session) async {
+    if (_pinnedSession != null) return false;
+    if (!await _connectivity.isOnline) return false;
+
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) return false;
+
+    final firebaseEmail =
+        LocalAuthStore.normalizeEmail(firebaseUser.email ?? '');
+    final sessionEmail = LocalAuthStore.normalizeEmail(session.email);
+    if (firebaseEmail != sessionEmail) return false;
+
+    if (!session.uid.startsWith('local-') && firebaseUser.uid != session.uid) {
+      return false;
+    }
+
+    try {
+      final doc =
+          await _firestore.collection('users').doc(firebaseUser.uid).get();
+      return doc.exists;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Stream<bool> watchRemoteSalikAccess(UserSession session) {
+    return Stream.multi((controller) async {
+      Future<void> emit() async {
+        if (controller.isClosed) return;
+        controller.add(await canQueryRemoteSaliks(session));
+      }
+
+      await emit();
+      final authSub = _auth.authStateChanges().listen((_) => emit());
+      final refreshSub = _sessionUpdates.stream.listen((_) => emit());
+      controller.onCancel = () {
+        authSub.cancel();
+        refreshSub.cancel();
+      };
+    });
+  }
+
   Future<UserSession?> fetchSession() async {
+    if (_pinnedSession != null) {
+      return _commitSession(_pinnedSession);
+    }
+
     if (_offlineSessionActive) {
-      return _localAuth.getActiveOfflineSession();
+      return _commitSession(await _localAuth.getActiveOfflineSession());
     }
 
     final offlineSession = await _localAuth.getActiveOfflineSession();
-    final firebaseUser = _auth.currentUser;
+    var firebaseUser = _auth.currentUser;
+
+    if (await _connectivity.isOnline) {
+      final rememberedEmail = await _localAuth.getRememberedEmail();
+      if (rememberedEmail != null && rememberedEmail.isNotEmpty) {
+        final firebaseEmail = firebaseUser != null
+            ? LocalAuthStore.normalizeEmail(firebaseUser.email ?? '')
+            : '';
+        if (firebaseEmail != rememberedEmail) {
+          await _localAuth.refreshFirebaseAuth(
+            _auth,
+            preferredEmail: rememberedEmail,
+          );
+          firebaseUser = _auth.currentUser;
+        }
+      }
+    }
 
     if (offlineSession != null) {
       final offlineEmail = LocalAuthStore.normalizeEmail(offlineSession.email);
@@ -70,39 +186,98 @@ class AuthRepository {
           ? LocalAuthStore.normalizeEmail(firebaseUser.email ?? '')
           : '';
       if (firebaseUser == null || firebaseEmail != offlineEmail) {
-        _offlineSessionActive = true;
-        return offlineSession;
+        if (await _connectivity.isOnline) {
+          final restored = await _localAuth.refreshFirebaseAuth(
+            _auth,
+            preferredEmail: offlineSession.email,
+          );
+          if (restored) {
+            firebaseUser = _auth.currentUser;
+            if (firebaseUser != null &&
+                LocalAuthStore.normalizeEmail(firebaseUser.email ?? '') ==
+                    offlineEmail) {
+              await _localAuth.clearActiveOfflineUid();
+              _offlineSessionActive = false;
+            }
+          }
+        }
+        if (firebaseUser == null ||
+            LocalAuthStore.normalizeEmail(firebaseUser.email ?? '') !=
+                offlineEmail) {
+          _offlineSessionActive = true;
+          return _commitSession(offlineSession);
+        }
       }
     }
 
     if (firebaseUser != null) {
       _offlineSessionActive = false;
-      final local = await _localAuth.getUserByUid(firebaseUser.uid);
+      final firebaseUid = firebaseUser.uid;
+      final local = await _localAuth.getUserByUid(firebaseUid);
       if (local != null) {
-        return local;
+        if (await _connectivity.isOnline) {
+          final doc =
+              await _firestore.collection('users').doc(firebaseUid).get();
+          if (!doc.exists) {
+            return _commitSession(await syncUserProfileWithFirebase(local));
+          }
+        }
+        return _commitSession(local);
       }
       if (await _connectivity.isOnline) {
         final doc =
-            await _firestore.collection('users').doc(firebaseUser.uid).get();
-        if (!doc.exists) return null;
-        final session = UserSession.fromMap(firebaseUser.uid, doc.data()!);
-        await _localAuth.saveUser(session);
-        return session;
+            await _firestore.collection('users').doc(firebaseUid).get();
+        if (doc.exists) {
+          final session = UserSession.fromMap(firebaseUid, doc.data()!);
+          await _localAuth.saveUser(session);
+          return _commitSession(session);
+        }
+        final email = LocalAuthStore.normalizeEmail(firebaseUser.email ?? '');
+        final source = await _profileSourceForEmail(email);
+        if (source != null) {
+          return _commitSession(
+            await syncUserProfileWithFirebase(
+              UserSession(
+                uid: firebaseUid,
+                name: source.name,
+                email: email,
+                role: source.role,
+                gender: UserSession.normalizeGender(source.gender),
+              ),
+            ),
+          );
+        }
       }
+      if (_stickySession != null) return _stickySession;
       return null;
     }
 
     if (offlineSession != null) {
       _offlineSessionActive = true;
+      _stickySession = offlineSession;
       return offlineSession;
     }
+    if (_stickySession != null &&
+        (firebaseUser != null ||
+            (await _localAuth.getRememberedEmail())?.isNotEmpty == true)) {
+      return _stickySession;
+    }
+    _stickySession = null;
     return null;
   }
 
   Stream<UserSession?> sessionStream() {
     return Stream.multi((controller) async {
+      UserSession? lastEmitted;
+      var hasEmitted = false;
+
       Future<void> emit() async {
-        controller.add(await fetchSession());
+        if (controller.isClosed) return;
+        final session = await fetchSession();
+        if (hasEmitted && _sameSession(lastEmitted, session)) return;
+        hasEmitted = true;
+        lastEmitted = session;
+        controller.add(session);
       }
 
       await emit();
@@ -163,21 +338,131 @@ class AuthRepository {
       password: password,
     );
     final uid = cred.user!.uid;
-    final doc = await _firestore.collection('users').doc(uid).get();
-
-    if (!doc.exists) {
+    final normalizedEmail = LocalAuthStore.normalizeEmail(email);
+    final source = await _profileSourceForEmail(normalizedEmail);
+    if (source == null) {
       await _auth.signOut();
       throw const ProfileNotFoundException();
     }
 
-    final session = UserSession.fromMap(uid, doc.data()!);
-    await _localAuth.saveUser(session, password: password);
-    await _localAuth.rememberLogin(email, password);
-    await _localAuth.clearActiveOfflineUid();
-    _offlineSessionActive = false;
-    _notifySessionChanged();
+    final doc = await _firestore.collection('users').doc(uid).get();
+    final session = doc.exists
+        ? UserSession.fromMap(uid, doc.data()!)
+        : UserSession(
+            uid: uid,
+            name: source.name,
+            email: normalizedEmail,
+            role: source.role,
+            gender: UserSession.normalizeGender(source.gender),
+          );
 
-    return session;
+    return syncUserProfileWithFirebase(session, password: password);
+  }
+
+  /// Ensure Firestore users/{firebaseUid} exists and local cache uses same uid.
+  Future<UserSession> syncUserProfileWithFirebase(
+    UserSession session, {
+    String? password,
+  }) async {
+    final authUser = _auth.currentUser;
+    if (authUser == null) return session;
+
+    final uid = authUser.uid;
+    final email = LocalAuthStore.normalizeEmail(
+      authUser.email ?? session.email,
+    );
+    if (email.isEmpty) return session;
+
+    final source = await _profileSourceForEmail(email, fallback: session);
+    if (source == null) return session;
+
+    final ref = _firestore.collection('users').doc(uid);
+    final doc = await ref.get();
+    final demo = LocalUserSeed.profileForEmail(email);
+
+    final UserSession profile;
+    if (doc.exists) {
+      profile = UserSession.fromMap(uid, doc.data()!);
+      if (_needsProfileRepair(source, profile, demo)) {
+        final repaired = UserSession(
+          uid: uid,
+          name: source.name.isNotEmpty ? source.name : profile.name,
+          email: email,
+          role: source.role,
+          gender: UserSession.normalizeGender(
+            source.gender.isNotEmpty ? source.gender : profile.gender,
+          ),
+          avatar: profile.avatar,
+        );
+        await ref.set(repaired.toMap(), SetOptions(merge: true));
+        await _localAuth.saveUser(repaired, password: password);
+        debugPrint(
+          'Repaired users/$uid → role=${repaired.role.toFirestore()} gender=${repaired.gender}',
+        );
+        return _finalizeOnlineSession(repaired, password: password);
+      }
+      if (profile.uid != uid) {
+        final rebound = UserSession(
+          uid: uid,
+          name: profile.name,
+          email: email,
+          role: profile.role,
+          gender: profile.gender,
+          avatar: profile.avatar,
+        );
+        await _localAuth.saveUser(rebound, password: password);
+        return _finalizeOnlineSession(rebound, password: password);
+      }
+      await _localAuth.saveUser(profile, password: password);
+      return _finalizeOnlineSession(profile, password: password);
+    }
+
+    final created = UserSession(
+      uid: uid,
+      name: source.name,
+      email: email,
+      role: source.role,
+      gender: UserSession.normalizeGender(source.gender),
+      avatar: session.uid == uid ? session.avatar : null,
+    );
+
+    await ref.set(created.toMap(), SetOptions(merge: true));
+    await _localAuth.saveUser(created, password: password);
+    debugPrint('Synced users/$uid for $email');
+    return _finalizeOnlineSession(created, password: password);
+  }
+
+  bool _shouldRepairUserProfile(UserSession local, UserSession remote) {
+    if (AccessControl.canApprove(local.role) &&
+        !AccessControl.canApprove(remote.role)) {
+      return true;
+    }
+    if (remote.gender.trim().isEmpty && local.gender.trim().isNotEmpty) {
+      return true;
+    }
+    return false;
+  }
+
+  bool _needsProfileRepair(
+    UserSession local,
+    UserSession remote,
+    UserSession? demo,
+  ) {
+    if (_shouldRepairUserProfile(local, remote)) return true;
+    if (demo == null) return false;
+    if (local.role != remote.role) return true;
+    final remoteGender = UserSession.normalizeGender(remote.gender);
+    final localGender = UserSession.normalizeGender(local.gender);
+    return remoteGender != localGender && localGender.isNotEmpty;
+  }
+
+  Future<UserSession?> _profileSourceForEmail(
+    String email, {
+    UserSession? fallback,
+  }) async {
+    return await _localAuth.getUserByEmail(email) ??
+        LocalUserSeed.profileForEmail(email) ??
+        fallback;
   }
 
   Future<void> signOut() async {
@@ -185,6 +470,8 @@ class AuthRepository {
     await _localAuth.clearActiveOfflineUid();
     await _localAuth.clearRememberedLogin();
     _offlineSessionActive = false;
+    _stickySession = null;
+    _pinnedSession = null;
     _notifySessionChanged();
   }
 
@@ -215,15 +502,28 @@ class AuthRepository {
 
     final doc = await _firestore.collection('users').doc(uid).get();
     if (!doc.exists) {
-      debugPrint('promoteOfflineSession: users/$uid missing in Firestore');
-      return false;
+      final email = LocalAuthStore.normalizeEmail(
+        _auth.currentUser?.email ?? hint.email,
+      );
+      final source = await _profileSourceForEmail(email, fallback: hint);
+      if (source == null) {
+        debugPrint('promoteOfflineSession: users/$uid missing in Firestore');
+        return false;
+      }
+      final bootstrapped = UserSession(
+        uid: uid,
+        name: source.name,
+        email: email,
+        role: source.role,
+        gender: UserSession.normalizeGender(source.gender),
+      );
+      await syncUserProfileWithFirebase(bootstrapped);
+      return true;
     }
 
-    final profile = UserSession.fromMap(uid, doc.data()!);
-    await _localAuth.saveUser(profile);
-    await _localAuth.clearActiveOfflineUid();
-    _offlineSessionActive = false;
-    _notifySessionChanged();
+    await syncUserProfileWithFirebase(
+      UserSession.fromMap(uid, doc.data()!),
+    );
     return true;
   }
 

@@ -101,6 +101,17 @@ class LocalAuthStore {
 
   Future<void> saveUser(UserSession session, {String? password}) async {
     final email = normalizeEmail(session.email);
+    final existing = await _findUserByEmail(email);
+
+    // Drop placeholder row when binding to real Firebase uid.
+    if (existing != null &&
+        existing.uid != session.uid &&
+        existing.uid.startsWith('local-')) {
+      await (_db.delete(_db.localUsers)
+            ..where((t) => t.uid.equals(existing.uid)))
+          .go();
+    }
+
     var passwordHash = '';
     if (password != null) {
       passwordHash = await hashPassword(password);
@@ -165,6 +176,11 @@ class LocalAuthStore {
     await prefs.remove(_lastPasswordKey);
   }
 
+  Future<String?> getRememberedEmail() async {
+    final prefs = await _prefs;
+    return prefs.getString(_lastEmailKey);
+  }
+
   Future<bool> refreshFirebaseAuth(
     FirebaseAuth auth, {
     String? preferredEmail,
@@ -189,6 +205,12 @@ class LocalAuthStore {
       if (preferred != null && normalized != preferred) return;
       if (attempts.any((a) => a.email == normalized)) return;
       attempts.add((email: normalized, password: password));
+    }
+
+    if (preferred != null && preferred.isNotEmpty) {
+      if (SeedCredentials.seedEmails.contains(preferred)) {
+        addAttempt(preferred, SeedCredentials.defaultPassword);
+      }
     }
 
     final prefs = await _prefs;

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/locale_provider.dart';
 import 'translations.dart';
 
 class AppLocalizations {
@@ -26,8 +25,7 @@ class AppLocalizations {
 }
 
 final appLocalizationsProvider = Provider<AppLocalizations>((ref) {
-  final locale = ref.watch(localeProvider);
-  return AppLocalizations(locale);
+  return AppLocalizations(const Locale('en'));
 });
 
 extension L10nContext on BuildContext {

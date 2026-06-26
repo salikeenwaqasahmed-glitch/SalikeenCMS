@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
-
-/// Branded Salikeen mark — gradient tile with "S".
+/// Branded Salikeen CMS mark from launcher artwork.
 class AppLogo extends StatelessWidget {
   const AppLogo({
     super.key,
@@ -10,39 +8,23 @@ class AppLogo extends StatelessWidget {
     this.borderRadius,
   });
 
+  static const assetPath = 'assets/images/app_icon.png';
+
   final double size;
   final double? borderRadius;
 
   @override
   Widget build(BuildContext context) {
-    final radius = borderRadius ?? size * 0.28;
+    final radius = borderRadius ?? size * 0.22;
 
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppTheme.primaryColor, AppTheme.primaryLight],
-        ),
-        borderRadius: BorderRadius.circular(radius),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primaryColor.withValues(alpha: 0.22),
-            blurRadius: size * 0.12,
-            offset: Offset(0, size * 0.06),
-          ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          'S',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: size * 0.44,
-            fontWeight: FontWeight.w900,
-            height: 1,
-          ),
-        ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: Image.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.high,
       ),
     );
   }

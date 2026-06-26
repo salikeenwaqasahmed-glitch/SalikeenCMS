@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/router/form_navigation.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/saved_bilingual_text.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/widgets/app_loader.dart';
@@ -78,7 +79,7 @@ class DashboardScreen extends ConsumerWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: l10n.isUrdu ? 22 : 20,
+                    fontSize: 20,
                     fontWeight: FontWeight.w700,
                     color: Theme.of(context).colorScheme.primary,
                   ),
@@ -155,7 +156,7 @@ class DashboardScreen extends ConsumerWidget {
                 SectionTitle(l10n.t('stats_by_city')),
                 const SizedBox(height: AppSpacing.sm),
                 SizedBox(
-                  height: 118,
+                  height: 132,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: cityCounts.length,
@@ -163,11 +164,15 @@ class DashboardScreen extends ConsumerWidget {
                         const SizedBox(width: AppSpacing.sm),
                     itemBuilder: (context, index) {
                       final city = cityCounts[index];
-                      final label =
-                          l10n.isUrdu ? city.cityNameUrdu : city.cityName;
+                      final label = savedCityLabel(
+                        cityName: city.cityName,
+                        cityNameUrdu: city.cityNameUrdu,
+                      );
                       return StatCountCard(
                         expanded: false,
-                        width: 112,
+                        width: 132,
+                        labelMaxLines: 3,
+                        labelFontSize: 12,
                         label: label,
                         count: city.count,
                         icon: Icons.location_city,

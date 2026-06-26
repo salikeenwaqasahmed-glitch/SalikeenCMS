@@ -4,7 +4,7 @@ import '../../../../core/data/reference_data.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/access_control.dart';
-import '../../../../core/utils/localized_text.dart';
+import '../../../../core/utils/saved_bilingual_text.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../saliks/domain/entities/area.dart';
 import '../../../saliks/domain/entities/city.dart';
@@ -40,7 +40,12 @@ class FilterBar extends ConsumerWidget {
                 ...cities.map(
                   (c) => DropdownMenuItem(
                     value: c.cityId,
-                    child: Text(l10n.isUrdu ? c.cityNameUrdu : c.cityName),
+                    child: Text(
+                      savedCityLabel(
+                        cityName: c.cityName,
+                        cityNameUrdu: c.cityNameUrdu,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -55,7 +60,12 @@ class FilterBar extends ConsumerWidget {
                 ...areas.map(
                   (a) => DropdownMenuItem(
                     value: a.areaId,
-                    child: Text(l10n.isUrdu ? a.areaNameUrdu : a.areaName),
+                    child: Text(
+                      savedAreaLabel(
+                        areaName: a.areaName,
+                        areaNameUrdu: a.areaNameUrdu,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -173,7 +183,6 @@ class FilterChips extends ConsumerWidget {
             _cityChipLabel(
               cityId: filter.cityId,
               cities: cities,
-              preferUrdu: l10n.isUrdu,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -186,7 +195,6 @@ class FilterChips extends ConsumerWidget {
             _areaChipLabel(
               filter: filter,
               areas: areas,
-              preferUrdu: l10n.isUrdu,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -228,14 +236,12 @@ class FilterChips extends ConsumerWidget {
 String _cityChipLabel({
   required String cityId,
   required List<City> cities,
-  required bool preferUrdu,
 }) {
   final city = findCityInList(cityId, cities);
   if (city == null) return cityId;
-  final label = localizedCityName(
+  final label = savedCityLabel(
     cityName: city.cityName,
     cityNameUrdu: city.cityNameUrdu,
-    preferUrdu: preferUrdu,
   );
   return label.isNotEmpty ? label : cityId;
 }
@@ -243,15 +249,13 @@ String _cityChipLabel({
 String _areaChipLabel({
   required SalikFilter filter,
   required List<Area> areas,
-  required bool preferUrdu,
 }) {
   final area =
       findAreaInList(filter.areaId, areas) ?? findArea(filter.areaId);
   if (area == null) return filter.areaId;
-  final label = localizedAreaName(
+  final label = savedAreaLabel(
     areaName: area.areaName,
     areaNameUrdu: area.areaNameUrdu,
-    preferUrdu: preferUrdu,
   );
   return label.isNotEmpty ? label : filter.areaId;
 }

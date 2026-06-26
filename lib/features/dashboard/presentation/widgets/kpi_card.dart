@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 
@@ -19,7 +18,6 @@ class KpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
     return Card(
       child: Container(
         decoration: BoxDecoration(
@@ -46,7 +44,7 @@ class KpiCard extends StatelessWidget {
                   child: Text(
                     label,
                     style: AppTextStyles.forLocale(
-                      l10n.isUrdu,
+                      false,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: Colors.grey.shade600,

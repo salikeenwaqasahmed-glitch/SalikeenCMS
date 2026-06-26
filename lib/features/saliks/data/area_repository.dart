@@ -27,7 +27,7 @@ class AreaRepository {
   Stream<List<City>> watchCities() {
     return _db.watchCities().map((rows) {
       final cities = rows
-          .where((r) => r.syncStatus != pendingDelete)
+          .where((r) => r.syncStatus != pendingDelete && r.syncStatus != aliasSynced)
           .map(
             (r) => City(
               cityId: r.cityId,
@@ -48,7 +48,7 @@ class AreaRepository {
   Stream<List<Area>> watchAreasByCity(String cityId) {
     return _db.watchAreasByCity(cityId).map((rows) {
       final areas = rows
-          .where((r) => r.syncStatus != pendingDelete)
+          .where((r) => r.syncStatus != pendingDelete && r.syncStatus != aliasSynced)
           .map(
             (r) => Area(
               areaId: r.areaId,
@@ -66,11 +66,51 @@ class AreaRepository {
     });
   }
 
+  Future<City?> resolveCity(String cityId) async {
+    if (cityId.isEmpty) return null;
+
+    final canonical = findCity(cityId);
+    if (canonical != null) return canonical;
+
+    final row = await _db.getCityById(cityId);
+    if (row != null && row.syncStatus != pendingDelete) {
+      return City(
+        cityId: row.cityId,
+        cityName: row.cityName,
+        cityNameUrdu: row.cityNameUrdu,
+      );
+    }
+
+    for (final city in await _allCities()) {
+      if (city.cityId == cityId) return city;
+    }
+    return null;
+  }
+
+  Future<Area?> resolveArea(String areaId) async {
+    if (areaId.isEmpty) return null;
+
+    final canonical = findArea(areaId);
+    if (canonical != null) return canonical;
+
+    final row = await _db.getAreaById(areaId);
+    if (row != null && row.syncStatus != pendingDelete) {
+      return Area(
+        areaId: row.areaId,
+        cityId: row.cityId,
+        areaName: row.areaName,
+        areaNameUrdu: row.areaNameUrdu,
+        isMajor: row.isMajor,
+      );
+    }
+    return null;
+  }
+
   Future<List<City>> _allCities() async {
     final rows = await _db.watchCities().first;
     if (rows.isEmpty) return kCities;
     return rows
-        .where((r) => r.syncStatus != pendingDelete)
+        .where((r) => r.syncStatus != pendingDelete && r.syncStatus != aliasSynced)
         .map(
           (r) => City(
             cityId: r.cityId,
@@ -85,7 +125,7 @@ class AreaRepository {
     final rows = await _db.watchAreasByCity(cityId).first;
     if (rows.isEmpty) return areasForCity(cityId);
     return rows
-        .where((r) => r.syncStatus != pendingDelete)
+        .where((r) => r.syncStatus != pendingDelete && r.syncStatus != aliasSynced)
         .map(
           (r) => Area(
             areaId: r.areaId,
@@ -99,12 +139,21 @@ class AreaRepository {
   }
 
   Future<City?> findCityByName(String name) async {
-    final normalized = name.trim().toLowerCase();
-    if (normalized.isEmpty) return null;
+    return findCityByNames(nameEn: name, nameUr: name);
+  }
+
+  Future<City?> findCityByNames({
+    String nameEn = '',
+    String nameUr = '',
+  }) async {
+    final canonical = findCanonicalCityByName(nameEn: nameEn, nameUr: nameUr);
+    if (canonical != null) {
+      await _db.upsertCity(cityToCompanion(canonical));
+      return canonical;
+    }
 
     for (final city in await _allCities()) {
-      if (city.cityName.toLowerCase() == normalized ||
-          city.cityNameUrdu.toLowerCase() == normalized) {
+      if (cityMatchesNames(city, nameEn: nameEn, nameUr: nameUr)) {
         return city;
       }
     }
@@ -128,7 +177,7 @@ class AreaRepository {
     required String nameEn,
     required String nameUr,
   }) async {
-    final existing = await findCityByName(nameEn.isNotEmpty ? nameEn : nameUr);
+    final existing = await findCityByNames(nameEn: nameEn, nameUr: nameUr);
     if (existing != null) return existing;
 
     final id = _uuid.v4();

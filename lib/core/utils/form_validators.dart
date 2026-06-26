@@ -1,5 +1,6 @@
+import '../data/country_codes.dart';
 import '../localization/app_localizations.dart';
-import 'pakistan_phone.dart';
+import 'phone_number_utils.dart';
 
 class FormValidators {
   static String? requiredField(String? value, AppLocalizations l10n) {
@@ -9,15 +10,31 @@ class FormValidators {
     return null;
   }
 
-  static String? phoneField(String? value, AppLocalizations l10n) {
+  static String? phoneField(
+    String? value,
+    AppLocalizations l10n, {
+    CountryDialCode country = kDefaultCountry,
+  }) {
     final required = requiredField(value, l10n);
     if (required != null) return required;
-    return PakistanPhone.validationMessage(value!, l10n);
+    return PhoneNumberUtils.validationMessage(
+      value!,
+      l10n,
+      country: country,
+    );
   }
 
-  static String? optionalPhone(String? value, AppLocalizations l10n) {
+  static String? optionalPhone(
+    String? value,
+    AppLocalizations l10n, {
+    CountryDialCode country = kDefaultCountry,
+  }) {
     if (value == null || value.trim().isEmpty) return null;
-    return PakistanPhone.validationMessage(value, l10n);
+    return PhoneNumberUtils.validationMessage(
+      value,
+      l10n,
+      country: country,
+    );
   }
 
   static String? emailField(String? value, AppLocalizations l10n) {

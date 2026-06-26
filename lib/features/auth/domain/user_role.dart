@@ -1,15 +1,15 @@
 enum UserRole {
   admin,
-  genderAdmin,
+  approval,
   editor,
   crudUser;
 
   String get label {
     switch (this) {
       case UserRole.admin:
-        return 'Global Admin';
-      case UserRole.genderAdmin:
-        return 'Gender Admin';
+        return 'Super Admin';
+      case UserRole.approval:
+        return 'Approval';
       case UserRole.editor:
         return 'Editor';
       case UserRole.crudUser:
@@ -21,8 +21,8 @@ enum UserRole {
     switch (this) {
       case UserRole.admin:
         return 'role_admin';
-      case UserRole.genderAdmin:
-        return 'role_gender_admin';
+      case UserRole.approval:
+        return 'role_approval';
       case UserRole.editor:
         return 'role_editor';
       case UserRole.crudUser:
@@ -37,8 +37,9 @@ enum UserRole {
       case 'admin':
       case 'globaladmin':
         return UserRole.admin;
+      case 'approval':
       case 'genderadmin':
-        return UserRole.genderAdmin;
+        return UserRole.approval;
       case 'editor':
         return UserRole.editor;
       case 'cruduser':
@@ -52,8 +53,8 @@ enum UserRole {
     switch (this) {
       case UserRole.admin:
         return 'admin';
-      case UserRole.genderAdmin:
-        return 'genderAdmin';
+      case UserRole.approval:
+        return 'approval';
       case UserRole.editor:
       case UserRole.crudUser:
         return 'editor';

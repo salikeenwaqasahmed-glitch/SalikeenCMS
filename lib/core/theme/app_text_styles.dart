@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 abstract final class AppTextStyles {
+  static const String _interFamily = 'Roboto';
+
   static TextStyle inter({
     double? fontSize,
     FontWeight? fontWeight,
     Color? color,
   }) {
-    return GoogleFonts.inter(
+    return TextStyle(
+      fontFamily: _interFamily,
+      fontFamilyFallback: const ['sans-serif'],
       fontSize: fontSize,
       fontWeight: fontWeight,
       color: color,
@@ -19,7 +22,8 @@ abstract final class AppTextStyles {
     FontWeight? fontWeight,
     Color? color,
   }) {
-    return GoogleFonts.notoNastaliqUrdu(
+    return TextStyle(
+      fontFamily: 'sans-serif',
       fontSize: fontSize ?? 16,
       fontWeight: fontWeight,
       color: color,

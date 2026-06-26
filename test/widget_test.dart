@@ -9,8 +9,9 @@ void main() {
         child: SalikManagementApp(),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
 
-    expect(find.textContaining('SALIK'), findsWidgets);
+    expect(find.textContaining('Salikeen'), findsWidgets);
   });
 }

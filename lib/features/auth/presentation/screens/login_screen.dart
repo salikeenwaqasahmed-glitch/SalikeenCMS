@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/auth/local_auth_store.dart';
 import '../../../../core/localization/app_localizations.dart';
-import '../../../../core/providers/locale_provider.dart';
+import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/utils/form_validators.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_logo.dart';
@@ -25,6 +25,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _obscure = true;
   String? _loginError;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() async {
+      final email =
+          await ref.read(localAuthStoreProvider).getRememberedEmail();
+      if (email != null && email.isNotEmpty && mounted) {
+        _emailController.text = email;
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -52,7 +64,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final outerPadding = isCompact ? AppSpacing.md : AppSpacing.lg;
     final cardPadding = isCompact ? AppSpacing.md : AppSpacing.lg;
     final logoSize = isCompact ? 52.0 : 64.0;
-    final titleSize = l10n.isUrdu ? (isCompact ? 24.0 : 26.0) : (isCompact ? 20.0 : 22.0);
+    final titleSize = isCompact ? 20.0 : 22.0;
 
     ref.listen(authControllerProvider, (prev, next) {
       if (next.hasError) {
@@ -75,30 +87,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       resizeToAvoidBottomInset: true,
       body: BrandedBackground(
         safeArea: false,
-        child: Stack(
-          children: [
-            SafeArea(
-              bottom: false,
-              child: Align(
-                alignment: AlignmentDirectional.topEnd,
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.only(
-                    top: AppSpacing.sm,
-                    end: AppSpacing.md,
-                  ),
-                  child: IconButton.filledTonal(
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.15),
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () => ref.read(localeProvider.notifier).toggle(),
-                    icon: const Icon(Icons.language),
-                    tooltip: l10n.t('language'),
-                  ),
-                ),
-              ),
-            ),
-            LayoutBuilder(
+        child: SafeArea(
+          bottom: false,
+          child: LayoutBuilder(
               builder: (context, constraints) {
                 return SingleChildScrollView(
                   keyboardDismissBehavior:
@@ -138,7 +129,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: AppTextStyles.forLocale(
-                                    l10n.isUrdu,
+                                    false,
                                     fontSize: titleSize,
                                     fontWeight: FontWeight.w800,
                                     color: AppTheme.primaryColor,
@@ -246,9 +237,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 );
               },
             ),
-          ],
+          ),
         ),
-      ),
     );
   }
 }

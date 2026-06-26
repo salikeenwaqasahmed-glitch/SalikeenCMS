@@ -1,11 +1,11 @@
 {
-    "name": "Salik CRM",
-    "short_name": "Salik CRM",
+    "name": "Salikeen CMS",
+    "short_name": "Salikeen CMS",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "Salik CRM contact management with role-based gender access.",
+    "description": "Salikeen CMS contact management with role-based gender access.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

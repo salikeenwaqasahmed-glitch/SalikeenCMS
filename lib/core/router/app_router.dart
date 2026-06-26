@@ -5,6 +5,7 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/saliks/presentation/screens/add_salik_form_screen.dart';
+import '../../features/saliks/presentation/screens/duplicate_saliks_screen.dart';
 import '../../features/saliks/presentation/screens/pending_approvals_screen.dart';
 import '../../features/saliks/presentation/screens/salik_directory_screen.dart';
 import '../../features/saliks/presentation/screens/salik_profile_screen.dart';
@@ -17,7 +18,16 @@ import '../widgets/salik_widgets.dart';
 
 final _routerRefreshProvider = Provider<ValueNotifier<int>>((ref) {
   final notifier = ValueNotifier(0);
-  ref.listen(authStateProvider, (_, __) {
+  ref.listen(authStateProvider, (prev, next) {
+    final prevSession = prev?.valueOrNull;
+    final nextSession = next.valueOrNull;
+    if (prevSession == null && nextSession == null) return;
+    if (prevSession != null &&
+        nextSession != null &&
+        prevSession.uid == nextSession.uid &&
+        prevSession.email == nextSession.email) {
+      return;
+    }
     notifier.value++;
   });
   ref.onDispose(notifier.dispose);
@@ -25,13 +35,13 @@ final _routerRefreshProvider = Provider<ValueNotifier<int>>((ref) {
 });
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
   final refresh = ref.watch(_routerRefreshProvider);
 
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/',
     refreshListenable: refresh,
     redirect: (context, state) {
+      final authState = ref.read(authStateProvider);
       if (authState.isLoading) return null;
 
       final isLoggedIn = authState.valueOrNull != null;
@@ -87,6 +97,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     },
                   ),
                   GoRoute(
+                    path: 'duplicates',
+                    builder: (context, state) =>
+                        const DuplicateSaliksScreen(),
+                  ),
+                  GoRoute(
                     path: 'pending',
                     builder: (context, state) =>
                         const PendingApprovalsScreen(),
@@ -123,7 +138,8 @@ class NavigationShellScaffold extends ConsumerWidget {
       location.contains('/saliks/profile/') ||
       location.contains('/saliks/add') ||
       location.contains('/saliks/edit/') ||
-      location.contains('/saliks/pending');
+      location.contains('/saliks/pending') ||
+      location.contains('/saliks/duplicates');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -183,4 +199,5 @@ bool isSubRoute(String location) =>
     location.contains('/saliks/profile/') ||
     location.contains('/saliks/add') ||
     location.contains('/saliks/edit/') ||
-    location.contains('/saliks/pending');
+    location.contains('/saliks/pending') ||
+    location.contains('/saliks/duplicates');

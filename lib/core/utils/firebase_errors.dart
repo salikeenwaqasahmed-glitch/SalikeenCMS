@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../features/auth/data/auth_repository.dart';
+import '../../features/saliks/domain/entities/duplicate_salik_reason.dart';
 import '../../features/saliks/data/salik_repository.dart';
 import '../auth/local_auth_store.dart';
 import '../localization/app_localizations.dart';

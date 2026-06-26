@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/utils/firebase_errors.dart';
-import '../../../../core/providers/locale_provider.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../../core/network/connectivity_service.dart';
 import '../../../../core/sync/sync_service.dart';
@@ -22,7 +21,6 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final session = ref.watch(currentSessionProvider);
-    final locale = ref.watch(localeProvider);
     final themeMode = ref.watch(themeModeProvider);
     final isOnline = ref.watch(isOnlineProvider);
     final pendingCount = ref.watch(pendingSyncCountProvider).valueOrNull ?? 0;
@@ -73,7 +71,7 @@ class SettingsScreen extends ConsumerWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTextStyles.forLocale(
-                              l10n.isUrdu,
+                              false,
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
                             ),
@@ -117,16 +115,6 @@ class SettingsScreen extends ConsumerWidget {
           Card(
             child: Column(
               children: [
-                SwitchListTile(
-                  secondary: const Icon(Icons.language),
-                  title: Text(l10n.t('language')),
-                  subtitle: Text(
-                    locale.languageCode == 'ur' ? 'اردو' : 'English',
-                  ),
-                  value: locale.languageCode == 'ur',
-                  onChanged: (_) =>
-                      ref.read(localeProvider.notifier).toggle(),
-                ),
                 SwitchListTile(
                   secondary: Icon(
                     themeMode == ThemeMode.dark
@@ -192,7 +180,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.lg),
           Center(
             child: Text(
-              'Salik CRM v1.0.0',
+              'Salikeen CMS v1.0.0',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
           ),

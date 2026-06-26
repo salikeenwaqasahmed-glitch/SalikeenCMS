@@ -1,93 +1,99 @@
-# Salik CRM (Flutter)
+# Salikeen CMS (Flutter)
 
-Mobile contact management app for Saliks with role-based gender access, editor approval workflow, bilingual EN/UR support, and Firebase backend.
+Mobile contact management for Saliks with role-based gender access, editor approval workflow, bilingual EN/UR support, offline-first sync, and Firebase backend.
 
 ## Features
 
 ### Roles and access
 
-Three roles in app code + `gender` field on each user. Firestore `users/{uid}` must match.
+Three roles in app + `gender` on each `users/{uid}` doc. Firestore must match.
 
 | Role | Firestore `role` | Gender scope | Permissions |
 |------|------------------|--------------|-------------|
-| **Global Admin** | `admin` | All | Full CRUD, approve any gender, set gender on add form |
-| **Gender Admin** | `genderAdmin` | Own gender | Pending queue, approve/reject, full CRUD on approved |
-| **Editor** | `editor` | Own gender | Add → `pending`; read all **approved** + **own pending** on Saliks list; My Submissions for pending/rejected; no edit/delete |
+| **Global Admin** | `admin` | All | Full CRUD, approve any gender, delete any gender, duplicate cleanup |
+| **Approval** | `approval` | Own gender | Pending queue, approve/reject, CRUD on approved, duplicate cleanup (own gender) |
+| **Editor** | `editor` | Own gender | Add → `pending`; read approved + own pending; no edit/delete after submit |
 
-Legacy `crudUser` in Firestore is treated as `editor` in the app and rules.
+Legacy values: `genderAdmin` → `approval`, `crudUser` → `editor`.
 
-Gender values must be **`Male`** or **`Female`** (capital M/F).
+Gender must be **`Male`** or **`Female`**.
 
 ### Editor approval workflow
 
 ```text
 Editor add form → approvalStatus: pending, isActive: false
        ↓ sync (online)
-Gender Admin pending queue → Approve / Reject
+Approval pending queue → Approve / Reject
        ↓ approve
 Main Saliks list — approved for everyone; editor also sees own pending (badge)
 ```
 
-- **Saliks tab (editor)** — all approved saliks in gender scope **plus** own pending submissions (orange **Pending** badge, sorted to top)
-- **My Submissions** (`/saliks/pending`) — editor: own pending + rejected; genderAdmin: all pending to review
-- **Pending Approvals** — genderAdmin / admin queue with approve/reject on profile
-- Profile: **Added by** on create; **Approved by** after approval
+- **Saliks tab (editor)** — approved in gender scope + own pending (orange badge)
+- **My Submissions** (`/saliks/pending`) — editor: own pending/rejected; approval/admin: queue to review
+- **Duplicate Data** (`/saliks/duplicates`) — approval + admin only; merge or delete duplicate saliks
+
+### Duplicate data (approval + admin)
+
+Duplicates detected when records share:
+
+- same mobile number, or
+- same English name + father's name, or
+- same Urdu name + father's name
+
+Open **Saliks → copy icon** → pick **Keep this record** → **Merge & remove others** (fills empty fields on keeper, deletes rest) or delete individual rows.
 
 ### Dashboard
 
-- Welcome + scope banner (role/gender access)
-- **Salik overview** — Total / Male / Female stat cards
-- **FAB + app bar** add button (role-gated)
-- Pending approvals quick action (badge count) for editor / genderAdmin / admin
+- Welcome + scope banner (role/gender)
+- Salik overview — Total / Male / Female
+- FAB + app bar add (role-gated)
+- Pending quick action with badge
 
 ### Saliks
 
 - Directory with search, browse tabs, filter chips
-- **genderAdmin / admin** — main list shows **approved** saliks only
-- **editor** — main list shows **approved** + **own pending** (with status badge)
-- Profile with letter avatar, call / WhatsApp (approved only)
-- **Single-page add/edit form** with EN/UR toggle
-- Duplicate mobile or name+father blocked on create/update (among approved saliks)
-- Editors: add only; success message *Submitted for approval*
+- **approval / admin** — main list shows **approved** saliks (gender-scoped for approval)
+- **editor** — approved + own pending with status badge
+- Profile with avatar, call / WhatsApp (approved)
+- Single-page add/edit form with EN/UR fields
+- Duplicate mobile or name+father blocked on create/update/approve (among approved)
+- Editors: add only; message *Submitted for approval*
 
 ### App experience
 
 - Bilingual UI — English + Urdu (RTL)
 - Dark mode
-- **Offline-first** — local SQLite (Drift) cache
-- **Offline login** — five demo users pre-seeded locally; password `12345678`
-- **Auto-sync** — pending changes push when online; **Sync now** in Settings
+- **Offline-first** — SQLite (Drift) cache + sync queue
+- **Offline login** — CMS staff pre-seeded locally; password `cms@1234`
+- **Auto-sync** — background sync after login; **Sync now** in Settings
+- Launcher icon from `android/app/src/main/res/` (also used in-app + web/iOS)
 
-### Offline login (seed users)
+### Offline login (CMS staff)
 
-Five demo accounts are **hardcoded** and written to local Drift on **every app start** — no internet required.
+Nine staff accounts are defined in [`lib/core/auth/staff_users.dart`](lib/core/auth/staff_users.dart) and written to local Drift on app start via [`lib/core/auth/local_user_seed.dart`](lib/core/auth/local_user_seed.dart). Password: **`cms@1234`** ([`seed_credentials.dart`](lib/core/auth/seed_credentials.dart)).
 
-| Source file | Purpose |
-|-------------|---------|
-| [`lib/core/auth/local_user_seed.dart`](lib/core/auth/local_user_seed.dart) | Email, name, role, gender |
-| [`lib/core/auth/seed_credentials.dart`](lib/core/auth/seed_credentials.dart) | Shared demo password `12345678` |
-| [`lib/main.dart`](lib/main.dart) | Calls `LocalUserSeed.ensureUsers()` at startup |
+Offline `uid` is `local-{email}` until online login binds Firebase Auth `uid` → `users/{uid}` in Firestore + local cache.
 
-Offline `uid` is `local-{email}` until first successful online login (then Firebase `uid`).
-
-**Online sync** still needs the same email in Firebase Authentication + `users/{uid}` with matching `role`.
+**Online** still needs Firebase Auth + matching `users/{uid}` (`name`, `email`, `role`, `gender`).
 
 ### Offline mode and security
 
-- SHA-256 password hash (per-device salt) in secure storage for offline login
-- **Sign out** before switching users — avoids stale Firebase session flipping role (e.g. editor → admin)
-- Sync re-auth uses **only the logged-in email** — never cycles through all seed accounts
-- For **online sync**, each user needs Firebase Auth + matching `users/{uid}` doc
-- Treat devices with cached credentials as **trusted**
+- SHA-256 password hash (per-device salt) for offline login
+- **Sign out** before switching users — avoids stale Firebase session
+- Sync re-auth uses logged-in email only
+- Devices with cached credentials are **trusted**
 
 ### Firebase
 
-- **Auth** — Email/password; requires matching `users/{uid}` Firestore profile
+- **Auth** — Email/password; `users/{uid}` profile required for rules
 - **Firestore collections:**
-  - `saliks` — contact records (+ approval fields); **no demo saliks** — list starts empty until editors create
-  - `users` — profiles (`name`, `email`, `role`, `gender`)
-  - `cities`, `areas` — reference data (also bundled offline in [`reference_data.dart`](lib/core/data/reference_data.dart))
-  - `meta/seeded` — one-time seed flag (cities, areas, demo Auth users on first admin login)
+  - `saliks` — contacts + approval fields
+  - `users` — `name`, `email`, `role`, `gender`
+  - `cities`, `areas` — reference data (also in [`reference_data.dart`](lib/core/data/reference_data.dart))
+  - `meta/seeded` — cities/areas seeded once
+  - `meta/staffProvisioned` — CMS Auth + user profiles provisioned once
+
+On first **admin** online login, `SeedService` seeds cities/areas (if needed) and provisions all CMS staff in Firebase Auth + `users/{uid}` (background; login is not blocked).
 
 ## Prerequisites
 
@@ -110,7 +116,7 @@ Offline `uid` is `local-{email}` until first successful online login (then Fireb
    flutterfire configure
    ```
 
-3. **Enable Firebase services** in [Firebase Console](https://console.firebase.google.com):
+3. **Enable Firebase services** in [Firebase Console](https://console.firebase.google.com/project/salikeencms):
    - Authentication → Email/Password
    - Firestore Database (production mode)
 
@@ -118,12 +124,13 @@ Offline `uid` is `local-{email}` until first successful online login (then Fireb
 
    ```bash
    firebase login
-   firebase use salikeencms   # or your project id
+   firebase use salikeencms
    firebase deploy --only firestore:rules
    ```
 
-5. **User accounts** — create in Firebase Auth + `users/{uid}` docs (see demo accounts).  
-   `SeedService` also seeds **cities, areas, and demo Auth users** on first Global Admin login if `meta/seeded` is missing (does **not** seed saliks).
+5. **Staff accounts** — either:
+   - Log in once as `sarkar@cms.com` or `waqas@cms.com` (admin) online so `SeedService` provisions all `@cms.com` users, or
+   - Create each user manually in Auth + `users/{uid}` (see table below).
 
 6. **Run the app**
 
@@ -131,60 +138,52 @@ Offline `uid` is `local-{email}` until first successful online login (then Fireb
    flutter run
    ```
 
-## Demo accounts
+## CMS staff accounts
 
-All five are pre-seeded for **offline login** in local DB. Password: **`12345678`**.
+Password for all: **`cms@1234`**. Pre-seeded offline + provisioned online by admin login.
 
-| Email | Role | Gender | Notes |
-|-------|------|--------|-------|
-| admin@salikeen.com | `admin` | Male | Superadmin |
-| maleadmin@salikeen.com | `genderAdmin` | Male | Approve + CRUD male |
-| femaleadmin@salikeen.com | `genderAdmin` | Female | Approve + CRUD female |
-| maleeditor@salikeen.com | `editor` | Male | Add male → pending |
-| femaleeditor@salikeen.com | `editor` | Female | Add female → pending |
+| Email | Role | Gender |
+|-------|------|--------|
+| naveed@cms.com | `editor` | Male |
+| ayaz@cms.com | `editor` | Male |
+| mawaz@cms.com | `editor` | Male |
+| imran@cms.com | `editor` | Male |
+| adil@cms.com | `approval` | Male |
+| waheed@cms.com | `approval` | Male |
+| usman@cms.com | `approval` | Male |
+| sarkar@cms.com | `admin` | Male |
+| waqas@cms.com | `admin` | Male |
 
-**Saliks:** no sample contacts are bundled. Editors add real records; genderAdmin approves.
+**Saliks:** no sample contacts bundled. Editors add records; approval approves.
 
-### Production cutover (remove old demo saliks)
-
-If you previously ran an older build that seeded sample saliks:
-
-1. **Firestore** — delete all documents in the `saliks` collection (`salik-1` … `salik-6` and any test UUIDs). Keep `users`, `cities`, `areas`.
-2. **Browsers / devices** — if stale saliks still appear: clear site data (Chrome: DevTools → Application → Clear site data) or clear app storage, then reload. Offline users re-seed from `LocalUserSeed`; saliks stay empty.
-
-### Firebase setup per user (required for online sync)
-
-For each account:
-
-1. **Authentication** → Add user (email + password)
-2. **Firestore** → `users/{uid}`:
+### Firebase `users/{uid}` example
 
 ```json
 {
-  "email": "maleeditor@salikeen.com",
-  "name": "Male Editor",
+  "email": "naveed@cms.com",
+  "name": "Naveed",
   "role": "editor",
   "gender": "Male"
 }
 ```
 
-Use `genderAdmin` or `admin` for other roles. **Do not** set `role: admin` on editor accounts.
+Use `approval` or `admin` for other roles. `uid` must match Firebase Authentication user id.
 
 ### Multiple people, same role
 
-Same role is fine — different **email** + **name** per person. Audit trail uses `addedByUid` / `addedByName` on saliks and `approvedByUid` / `approvedByName` on approve.
+Different **email** + **name** per person. Audit: `addedByUid` / `addedByName`, `approvedByUid` / `approvedByName`.
 
 ## Building APK for QA
-
-Do **not** share `app-debug.apk` (~150 MB) via WhatsApp — MIUI installer often crashes.
 
 ```bash
 flutter build apk --split-per-abi --release
 ```
 
-Send **`app-arm64-v8a-release.apk`** (~24 MB) for most modern phones:
+Send **`app-arm64-v8a-release.apk`** for most phones:
 
 `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`
+
+Avoid sharing debug APK via WhatsApp on Xiaomi devices.
 
 ## Salik document fields (reference)
 
@@ -192,44 +191,40 @@ Send **`app-arm64-v8a-release.apk`** (~24 MB) for most modern phones:
 |-------|-------------|
 | `genderId` | `Male` / `Female` |
 | `cityId`, `areaId` | Location refs |
-| `referenceName` | Optional reference person name |
+| `referenceName` | Optional reference person |
 | `dateOfBaith` | ISO date string |
 | `isNafiAsbat`, `isSahibEMehfil` | Spiritual flags |
 | `mobileNumber`, `whatsappNumber` | Contact numbers |
 | `isActive` | `false` while pending; `true` when approved |
 | `approvalStatus` | `pending` \| `approved` \| `rejected` |
-| `addedByUid`, `addedByName` | Who submitted (editors) |
-| `approvedByUid`, `approvedByName`, `approvedAt` | Who approved/rejected and when |
-
-Legacy fields (`bazamId`, `khanqahId`, etc.) may exist on old docs; the app no longer reads or writes them.
+| `addedByUid`, `addedByName` | Who submitted |
+| `approvedByUid`, `approvedByName`, `approvedAt` | Approval decision |
 
 ## Approval workflow (offline-first)
 
 ```
-Editor        → local save (pending) → if online → Firestore pending
-genderAdmin   → see pending queue   → approve local → if online → Firestore approved
-admin         → all genders, same as genderAdmin + delete any gender
+Editor    → local save (pending) → if online → Firestore pending
+approval  → pending queue        → approve local → if online → Firestore approved
+admin     → all genders + delete any gender + duplicate tools
 ```
 
 | Step | Local DB | Firestore (when online) |
 |------|----------|-------------------------|
-| Editor submit | `approvalStatus: pending`, `isActive: false` | Same |
-| genderAdmin approve | `approved` + approver fields | Patch `approvalStatus`, `approvedBy*`, `isActive: true` |
-| Offline | Queued in sync table | Pushed on next **Sync now** |
+| Editor submit | `pending`, `isActive: false` | Same |
+| Approve | `approved` + approver fields | Patch approval fields |
+| Offline | Sync queue | Pushed on **Sync now** |
 
 ## Firestore rules summary
 
-| Action | admin | genderAdmin | editor |
-|--------|-------|-------------|--------|
-| Read saliks | All genders | Own gender (pending + approved) | Own gender |
-| Create salik | `approved` direct | `approved` direct | `pending` + `isActive: false` only |
-| Approve/reject | Any gender pending | Own gender pending | **No** |
-| Update approved | Yes | Own gender | **No** |
-| Delete salik | Yes | Own gender | **No** |
+| Action | admin | approval | editor |
+|--------|-------|----------|--------|
+| Read saliks | All genders | Own gender | Own gender |
+| Create salik | `approved` direct | `approved` direct | `pending` only |
+| Approve/reject | Any gender | Own gender | No |
+| Update approved | Yes | Own gender | No |
+| Delete salik | Yes | Own gender | No |
 
-Editor **cannot** update or delete after submit.
-
-Rules file: [`firestore.rules`](firestore.rules) — deploy after changes:
+Rules file: [`firestore.rules`](firestore.rules)
 
 ```bash
 firebase deploy --only firestore:rules
@@ -239,16 +234,14 @@ firebase deploy --only firestore:rules
 
 | Symptom | Fix |
 |---------|-----|
-| `PERMISSION_DENIED` | Deploy Firestore rules |
-| Editor login then shows **admin** | Log out fully; reinstall latest APK; check Firestore `role` is `editor`; sign out before switching users |
-| Editor pending not in list | Rebuild latest APK; pending matched by uid / `local-{email}` / name |
-| Editor sync fails | Create Firebase Auth user + `users/{uid}` with `role: editor` |
-| Package installer keeps stopping (Xiaomi) | Use `app-arm64-v8a-release.apk`, not debug APK; avoid WhatsApp if possible |
-| Duplicate mobile error | Same mobile already registered among approved saliks in scope |
-| Offline login fails | Use seeded email + `12345678`, or login online once |
-| Pending sync not clearing | Settings → Sync now when online; verify rules deployed |
-| Old saliks missing from list | Migration sets existing rows to `approved`; full app restart after DB upgrade |
-| Demo saliks reappear after clear | Delete Firestore `saliks` docs; rebuild app (no `kInitialSaliks`); clear browser/app storage |
+| `PERMISSION_DENIED` | Deploy Firestore rules; verify `users/{uid}` exists with correct `role` + `gender` |
+| Login spinner stuck | Hot restart; ensure online; admin seed runs in background after login |
+| Wrong role after login | Sign out; check Firestore `users/{uid}.role`; clear app data if stale offline cache |
+| Editor pending missing | Rebuild app; pending matched by Firebase `uid` / `local-{email}` |
+| Duplicate mobile on save | Same mobile exists among approved saliks — use **Duplicate Data** to merge |
+| Offline login fails | Use `@cms.com` email + `cms@1234` |
+| Pending sync not clearing | Settings → Sync now when online |
+| `users/{uid}` missing | Login online once; admin provisions staff; or bootstrap creates doc from local roster |
 
 ## Development
 
@@ -264,4 +257,4 @@ After Drift schema changes:
 dart run build_runner build
 ```
 
-Full app restart required after local DB migration (schema v3+).
+Full app restart after local DB migration.

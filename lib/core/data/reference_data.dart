@@ -53,3 +53,93 @@ Area? findAreaInList(String areaId, List<Area> areas) {
 
 List<Area> areasForCity(String cityId) =>
     kAreas.where((a) => a.cityId == cityId).toList();
+
+String normalizeCityLabel(String value) => value.trim().toLowerCase();
+
+bool cityNamesOverlap(City a, City b) {
+  final aNames = {
+    normalizeCityLabel(a.cityName),
+    normalizeCityLabel(a.cityNameUrdu),
+  }..removeWhere((s) => s.isEmpty);
+  final bNames = {
+    normalizeCityLabel(b.cityName),
+    normalizeCityLabel(b.cityNameUrdu),
+  }..removeWhere((s) => s.isEmpty);
+  return aNames.intersection(bNames).isNotEmpty;
+}
+
+bool cityMatchesNames(City city, {String nameEn = '', String nameUr = ''}) {
+  final inputs = {
+    normalizeCityLabel(nameEn),
+    normalizeCityLabel(nameUr),
+  }..removeWhere((s) => s.isEmpty);
+  if (inputs.isEmpty) return false;
+  final cityNames = {
+    normalizeCityLabel(city.cityName),
+    normalizeCityLabel(city.cityNameUrdu),
+  };
+  return inputs.any(cityNames.contains);
+}
+
+City? findCanonicalCityByName({String nameEn = '', String nameUr = ''}) {
+  for (final city in kCities) {
+    if (cityMatchesNames(city, nameEn: nameEn, nameUr: nameUr)) {
+      return city;
+    }
+  }
+  return null;
+}
+
+bool isCanonicalCityId(String cityId) =>
+    kCities.any((city) => city.cityId == cityId);
+
+bool isDuplicateCanonicalCity(City city) {
+  if (isCanonicalCityId(city.cityId)) return false;
+  for (final canonical in kCities) {
+    if (cityNamesOverlap(canonical, city)) return true;
+  }
+  return false;
+}
+
+String normalizeAreaLabel(String value) => value.trim().toLowerCase();
+
+bool areaNamesOverlap(Area a, Area b) {
+  final aNames = {
+    normalizeAreaLabel(a.areaName),
+    normalizeAreaLabel(a.areaNameUrdu),
+  }..removeWhere((s) => s.isEmpty);
+  final bNames = {
+    normalizeAreaLabel(b.areaName),
+    normalizeAreaLabel(b.areaNameUrdu),
+  }..removeWhere((s) => s.isEmpty);
+  return aNames.intersection(bNames).isNotEmpty;
+}
+
+Area? findCanonicalAreaByName({
+  required String cityId,
+  String nameEn = '',
+  String nameUr = '',
+}) {
+  final inputs = {
+    normalizeAreaLabel(nameEn),
+    normalizeAreaLabel(nameUr),
+  }..removeWhere((s) => s.isEmpty);
+  if (inputs.isEmpty) return null;
+
+  for (final area in kAreas) {
+    if (area.cityId != cityId) continue;
+    final areaNames = {
+      normalizeAreaLabel(area.areaName),
+      normalizeAreaLabel(area.areaNameUrdu),
+    };
+    if (inputs.any(areaNames.contains)) return area;
+  }
+  return null;
+}
+
+Area? findCanonicalAreaMatch(Area area) {
+  for (final canonical in kAreas) {
+    if (areaNamesOverlap(canonical, area)) return canonical;
+  }
+  return null;
+}
