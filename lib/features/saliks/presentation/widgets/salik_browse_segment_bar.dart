@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/data/reference_data.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/utils/saved_bilingual_text.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../dashboard/presentation/widgets/segment_pill_bar.dart';
 import '../../domain/entities/area.dart';
@@ -116,12 +115,7 @@ class SalikBrowseSegmentBar extends ConsumerWidget {
   ) {
     final labels = <String>[
       l10n.t('all_cities'),
-      ...cities.map(
-        (c) => savedCityLabel(
-          cityName: c.cityName,
-          cityNameUrdu: c.cityNameUrdu,
-        ),
-      ),
+      ...cities.map((c) => c.cityName),
     ];
     final values = ['all', ...cities.map((c) => c.cityId)];
     final selectedIndex =
@@ -144,12 +138,7 @@ class SalikBrowseSegmentBar extends ConsumerWidget {
   ) {
     final labels = <String>[
       l10n.t('all_areas'),
-      ...areas.map(
-        (a) => savedAreaLabel(
-          areaName: a.areaName,
-          areaNameUrdu: a.areaNameUrdu,
-        ),
-      ),
+      ...areas.map((a) => a.areaName),
     ];
     final values = ['all', ...areas.map((a) => a.areaId)];
     final selectedIndex =

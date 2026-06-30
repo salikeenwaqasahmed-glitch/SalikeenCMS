@@ -4,7 +4,6 @@ import '../../../../core/data/reference_data.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/access_control.dart';
-import '../../../../core/utils/saved_bilingual_text.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../saliks/domain/entities/area.dart';
 import '../../../saliks/domain/entities/city.dart';
@@ -40,12 +39,7 @@ class FilterBar extends ConsumerWidget {
                 ...cities.map(
                   (c) => DropdownMenuItem(
                     value: c.cityId,
-                    child: Text(
-                      savedCityLabel(
-                        cityName: c.cityName,
-                        cityNameUrdu: c.cityNameUrdu,
-                      ),
-                    ),
+                    child: Text(c.cityName),
                   ),
                 ),
               ],
@@ -60,12 +54,7 @@ class FilterBar extends ConsumerWidget {
                 ...areas.map(
                   (a) => DropdownMenuItem(
                     value: a.areaId,
-                    child: Text(
-                      savedAreaLabel(
-                        areaName: a.areaName,
-                        areaNameUrdu: a.areaNameUrdu,
-                      ),
-                    ),
+                    child: Text(a.areaName),
                   ),
                 ),
               ],
@@ -239,10 +228,7 @@ String _cityChipLabel({
 }) {
   final city = findCityInList(cityId, cities);
   if (city == null) return cityId;
-  final label = savedCityLabel(
-    cityName: city.cityName,
-    cityNameUrdu: city.cityNameUrdu,
-  );
+  final label = city.cityName.trim();
   return label.isNotEmpty ? label : cityId;
 }
 
@@ -253,9 +239,6 @@ String _areaChipLabel({
   final area =
       findAreaInList(filter.areaId, areas) ?? findArea(filter.areaId);
   if (area == null) return filter.areaId;
-  final label = savedAreaLabel(
-    areaName: area.areaName,
-    areaNameUrdu: area.areaNameUrdu,
-  );
+  final label = area.areaName.trim();
   return label.isNotEmpty ? label : filter.areaId;
 }

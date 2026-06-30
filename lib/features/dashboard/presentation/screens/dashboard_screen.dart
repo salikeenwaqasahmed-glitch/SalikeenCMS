@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/router/form_navigation.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/utils/saved_bilingual_text.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/widgets/app_loader.dart';
@@ -164,10 +163,7 @@ class DashboardScreen extends ConsumerWidget {
                         const SizedBox(width: AppSpacing.sm),
                     itemBuilder: (context, index) {
                       final city = cityCounts[index];
-                      final label = savedCityLabel(
-                        cityName: city.cityName,
-                        cityNameUrdu: city.cityNameUrdu,
-                      );
+                      final label = city.cityName.trim();
                       return StatCountCard(
                         expanded: false,
                         width: 132,

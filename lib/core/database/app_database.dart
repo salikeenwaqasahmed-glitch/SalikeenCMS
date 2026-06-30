@@ -5,6 +5,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../utils/text_field_merge.dart';
 import '../../features/saliks/domain/entities/approval_status.dart';
 import '../../features/saliks/domain/entities/area.dart';
 import '../../features/saliks/domain/entities/city.dart';
@@ -34,10 +35,8 @@ class LocalUsers extends Table {
 
 class LocalSaliks extends Table {
   TextColumn get salikId => text()();
-  TextColumn get nameEnglish => text()();
-  TextColumn get nameUrdu => text()();
-  TextColumn get fatherNameEnglish => text()();
-  TextColumn get fatherNameUrdu => text()();
+  TextColumn get name => text()();
+  TextColumn get fatherName => text()();
   TextColumn get mobileNumber => text()();
   TextColumn get whatsappNumber => text()();
   TextColumn get cityId => text()();
@@ -77,7 +76,6 @@ class LocalSaliks extends Table {
 class LocalCities extends Table {
   TextColumn get cityId => text()();
   TextColumn get cityName => text()();
-  TextColumn get cityNameUrdu => text()();
   TextColumn get syncStatus =>
       text().withDefault(const Constant('synced'))();
 
@@ -89,7 +87,6 @@ class LocalAreas extends Table {
   TextColumn get areaId => text()();
   TextColumn get cityId => text()();
   TextColumn get areaName => text()();
-  TextColumn get areaNameUrdu => text()();
   BoolColumn get isMajor => boolean().withDefault(const Constant(false))();
   TextColumn get syncStatus =>
       text().withDefault(const Constant('synced'))();
@@ -117,7 +114,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -135,6 +132,75 @@ class AppDatabase extends _$AppDatabase {
               "UPDATE local_saliks SET approval_status = 'approved' "
               "WHERE approval_status IS NULL OR approval_status = ''",
             );
+          }
+          if (from < 4) {
+            await migrator.addColumn(localSaliks, localSaliks.name);
+            await migrator.addColumn(localSaliks, localSaliks.fatherName);
+
+            final salikRows = await customSelect(
+              'SELECT salik_id, name_english, name_urdu, '
+              'father_name_english, father_name_urdu FROM local_saliks',
+            ).get();
+            for (final row in salikRows) {
+              final mergedName = mergeLegacyBilingual(
+                primary: row.read<String>('name_english'),
+                secondary: row.read<String>('name_urdu'),
+              );
+              final mergedFather = mergeLegacyBilingual(
+                primary: row.read<String>('father_name_english'),
+                secondary: row.read<String>('father_name_urdu'),
+              );
+              await customUpdate(
+                'UPDATE local_saliks SET name = ?, father_name = ? '
+                'WHERE salik_id = ?',
+                variables: [
+                  Variable.withString(mergedName),
+                  Variable.withString(mergedFather),
+                  Variable.withString(row.read<String>('salik_id')),
+                ],
+              );
+            }
+
+            await migrator.dropColumn(localSaliks, 'name_english');
+            await migrator.dropColumn(localSaliks, 'name_urdu');
+            await migrator.dropColumn(localSaliks, 'father_name_english');
+            await migrator.dropColumn(localSaliks, 'father_name_urdu');
+
+            final cityRows = await customSelect(
+              'SELECT city_id, city_name, city_name_urdu FROM local_cities',
+            ).get();
+            for (final row in cityRows) {
+              final merged = mergeLegacyBilingual(
+                primary: row.read<String>('city_name'),
+                secondary: row.read<String>('city_name_urdu'),
+              );
+              await customUpdate(
+                'UPDATE local_cities SET city_name = ? WHERE city_id = ?',
+                variables: [
+                  Variable.withString(merged),
+                  Variable.withString(row.read<String>('city_id')),
+                ],
+              );
+            }
+            await migrator.dropColumn(localCities, 'city_name_urdu');
+
+            final areaRows = await customSelect(
+              'SELECT area_id, area_name, area_name_urdu FROM local_areas',
+            ).get();
+            for (final row in areaRows) {
+              final merged = mergeLegacyBilingual(
+                primary: row.read<String>('area_name'),
+                secondary: row.read<String>('area_name_urdu'),
+              );
+              await customUpdate(
+                'UPDATE local_areas SET area_name = ? WHERE area_id = ?',
+                variables: [
+                  Variable.withString(merged),
+                  Variable.withString(row.read<String>('area_id')),
+                ],
+              );
+            }
+            await migrator.dropColumn(localAreas, 'area_name_urdu');
           }
         },
       );
@@ -346,10 +412,8 @@ extension LocalSalikMapper on LocalSalik {
   Salik toSalik() {
     return Salik(
       salikId: salikId,
-      nameEnglish: nameEnglish,
-      nameUrdu: nameUrdu,
-      fatherNameEnglish: fatherNameEnglish,
-      fatherNameUrdu: fatherNameUrdu,
+      name: name,
+      fatherName: fatherName,
       mobileNumber: mobileNumber,
       whatsappNumber: whatsappNumber,
       cityId: cityId,
@@ -382,10 +446,8 @@ extension LocalSalikMapper on LocalSalik {
 LocalSaliksCompanion salikToCompanion(Salik salik, {required String syncStatus}) {
   return LocalSaliksCompanion(
     salikId: Value(salik.salikId),
-    nameEnglish: Value(salik.nameEnglish),
-    nameUrdu: Value(salik.nameUrdu),
-    fatherNameEnglish: Value(salik.fatherNameEnglish),
-    fatherNameUrdu: Value(salik.fatherNameUrdu),
+    name: Value(salik.name),
+    fatherName: Value(salik.fatherName),
     mobileNumber: Value(salik.mobileNumber),
     whatsappNumber: Value(salik.whatsappNumber),
     cityId: Value(salik.cityId),
@@ -420,7 +482,6 @@ LocalCitiesCompanion cityToCompanion(City city, {String syncStatus = synced}) {
   return LocalCitiesCompanion(
     cityId: Value(city.cityId),
     cityName: Value(city.cityName),
-    cityNameUrdu: Value(city.cityNameUrdu),
     syncStatus: Value(syncStatus),
   );
 }
@@ -430,7 +491,6 @@ LocalAreasCompanion areaToCompanion(Area area, {String syncStatus = synced}) {
     areaId: Value(area.areaId),
     cityId: Value(area.cityId),
     areaName: Value(area.areaName),
-    areaNameUrdu: Value(area.areaNameUrdu),
     isMajor: Value(area.isMajor),
     syncStatus: Value(syncStatus),
   );

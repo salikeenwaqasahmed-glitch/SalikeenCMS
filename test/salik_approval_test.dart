@@ -38,10 +38,8 @@ void main() {
     test('salik toMap round-trips approval fields', () {
       const salik = Salik(
         salikId: 'id-1',
-        nameEnglish: 'Test',
-        nameUrdu: 'ٹیسٹ',
-        fatherNameEnglish: 'Father',
-        fatherNameUrdu: 'والد',
+        name: 'Test / ٹیسٹ',
+        fatherName: 'Father / والد',
         mobileNumber: '0300-1111111',
         whatsappNumber: '0300-1111111',
         cityId: 'c1',
@@ -76,10 +74,8 @@ void main() {
 
       const salik = Salik(
         salikId: 'pending-1',
-        nameEnglish: 'Pending Salik',
-        nameUrdu: '',
-        fatherNameEnglish: 'Father',
-        fatherNameUrdu: '',
+        name: 'Pending Salik',
+        fatherName: 'Father',
         mobileNumber: '0300-2222222',
         whatsappNumber: '0300-2222222',
         cityId: 'c1',
@@ -138,10 +134,8 @@ void main() {
 
       const cached = Salik(
         salikId: 'cached-1',
-        nameEnglish: 'Cached',
-        nameUrdu: '',
-        fatherNameEnglish: 'Father',
-        fatherNameUrdu: '',
+        name: 'Cached',
+        fatherName: 'Father',
         mobileNumber: '0300-3333333',
         whatsappNumber: '0300-3333333',
         cityId: 'c1',
@@ -177,10 +171,8 @@ void main() {
     test('mergeSalikOutbox prefers remote over synced cache when online', () {
       const remote = Salik(
         salikId: 's1',
-        nameEnglish: 'Remote',
-        nameUrdu: '',
-        fatherNameEnglish: 'Father',
-        fatherNameUrdu: '',
+        name: 'Remote',
+        fatherName: 'Father',
         mobileNumber: '03001111111',
         whatsappNumber: '03001111111',
         cityId: 'c1',
@@ -209,7 +201,7 @@ void main() {
         includeSyncedLocal: true,
       );
 
-      expect(merged.single.nameEnglish, 'Remote');
+      expect(merged.single.name, 'Remote');
     });
   });
 }
@@ -217,10 +209,8 @@ void main() {
 Salik _sampleSalik({required String id, required String genderId}) {
   return Salik(
     salikId: id,
-    nameEnglish: 'Name $id',
-    nameUrdu: '',
-    fatherNameEnglish: 'Father',
-    fatherNameUrdu: '',
+    name: 'Name $id',
+    fatherName: 'Father',
     mobileNumber: '0300$id',
     whatsappNumber: '0300$id',
     cityId: 'c1',

@@ -5,9 +5,7 @@ import '../domain/entities/salik_duplicate_group.dart';
 
 String _normalizePhone(String phone) => phone.replaceAll(RegExp(r'[^0-9]'), '');
 
-String _normalizeEnglish(String value) => value.trim().toLowerCase();
-
-String _normalizeUrdu(String value) => value.trim();
+String _normalizeName(String value) => value.trim().toLowerCase();
 
 List<SalikDuplicateGroup> findSalikDuplicateGroups(List<Salik> saliks) {
   final active = saliks
@@ -63,26 +61,15 @@ DuplicateSalikReason? _pairReason(Salik a, Salik b) {
     return DuplicateSalikReason.mobile;
   }
 
-  final nameEnA = _normalizeEnglish(a.nameEnglish);
-  final fatherEnA = _normalizeEnglish(a.fatherNameEnglish);
-  final nameEnB = _normalizeEnglish(b.nameEnglish);
-  final fatherEnB = _normalizeEnglish(b.fatherNameEnglish);
-  if (nameEnA.isNotEmpty &&
-      fatherEnA.isNotEmpty &&
-      nameEnA == nameEnB &&
-      fatherEnA == fatherEnB) {
-    return DuplicateSalikReason.nameEnglish;
-  }
-
-  final nameUrA = _normalizeUrdu(a.nameUrdu);
-  final fatherUrA = _normalizeUrdu(a.fatherNameUrdu);
-  final nameUrB = _normalizeUrdu(b.nameUrdu);
-  final fatherUrB = _normalizeUrdu(b.fatherNameUrdu);
-  if (nameUrA.isNotEmpty &&
-      fatherUrA.isNotEmpty &&
-      nameUrA == nameUrB &&
-      fatherUrA == fatherUrB) {
-    return DuplicateSalikReason.nameUrdu;
+  final nameA = _normalizeName(a.name);
+  final fatherA = _normalizeName(a.fatherName);
+  final nameB = _normalizeName(b.name);
+  final fatherB = _normalizeName(b.fatherName);
+  if (nameA.isNotEmpty &&
+      fatherA.isNotEmpty &&
+      nameA == nameB &&
+      fatherA == fatherB) {
+    return DuplicateSalikReason.name;
   }
 
   return null;
@@ -115,10 +102,7 @@ String _labelForGroup(List<Salik> members, Set<DuplicateSalikReason> reasons) {
   if (reasons.contains(DuplicateSalikReason.mobile)) {
     return first.mobileNumber.trim();
   }
-  if (reasons.contains(DuplicateSalikReason.nameEnglish)) {
-    return '${first.nameEnglish.trim()} / ${first.fatherNameEnglish.trim()}';
-  }
-  return '${first.nameUrdu.trim()} / ${first.fatherNameUrdu.trim()}';
+  return '${first.name.trim()} / ${first.fatherName.trim()}';
 }
 
 Salik mergeSalikRecords(Salik keep, Salik other) {
@@ -140,10 +124,8 @@ Salik mergeSalikRecords(Salik keep, Salik other) {
   final otherApproved = other.isApproved;
 
   return keep.copyWith(
-    nameEnglish: pick(keep.nameEnglish, other.nameEnglish),
-    nameUrdu: pick(keep.nameUrdu, other.nameUrdu),
-    fatherNameEnglish: pick(keep.fatherNameEnglish, other.fatherNameEnglish),
-    fatherNameUrdu: pick(keep.fatherNameUrdu, other.fatherNameUrdu),
+    name: pick(keep.name, other.name),
+    fatherName: pick(keep.fatherName, other.fatherName),
     mobileNumber: pick(keep.mobileNumber, other.mobileNumber),
     whatsappNumber: pick(keep.whatsappNumber, other.whatsappNumber),
     cityId: pick(keep.cityId, other.cityId),

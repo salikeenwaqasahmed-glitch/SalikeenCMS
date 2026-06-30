@@ -18,6 +18,7 @@ import '../data/reference_data.dart';
 import '../database/app_database.dart';
 import '../network/connectivity_service.dart';
 import '../utils/access_control.dart';
+import '../../features/saliks/presentation/providers/area_provider.dart';
 
 final syncServiceProvider = Provider<SyncService>((ref) {
   final service = SyncService(
@@ -61,8 +62,10 @@ class SyncService {
   StreamSubscription<bool>? _connectivitySub;
   bool _syncing = false;
   String? lastSyncError;
+  Ref? _ref;
 
   void start(Ref ref) {
+    _ref = ref;
     unawaited(_purgeLocalStaleQueue());
     _connectivitySub?.cancel();
     _connectivitySub = _connectivity.onlineStream.listen((online) {
@@ -733,6 +736,15 @@ class SyncService {
     await _pullSaliks(session);
     await _pullCities();
     await _pullAreas();
+    _invalidateLocationProviders();
+  }
+
+  void _invalidateLocationProviders() {
+    final ref = _ref;
+    if (ref == null) return;
+    ref.invalidate(citiesProvider);
+    ref.invalidate(cityByIdProvider);
+    ref.invalidate(areaByIdProvider);
   }
 
   Future<void> _pullSaliks(UserSession session) async {
@@ -925,17 +937,13 @@ class SyncService {
       try {
         final city = City.fromMap(doc.data(), id: doc.id);
         if (isDuplicateCanonicalCity(city)) {
-          final canonical = findCanonicalCityByName(
-            nameEn: city.cityName,
-            nameUr: city.cityNameUrdu,
-          );
+          final canonical = findCanonicalCityByName(name: city.cityName);
           if (canonical != null) {
             await _db.upsertCity(
               cityToCompanion(
                 City(
                   cityId: doc.id,
                   cityName: canonical.cityName,
-                  cityNameUrdu: canonical.cityNameUrdu,
                 ),
                 syncStatus: aliasSynced,
               ),
@@ -974,7 +982,6 @@ class SyncService {
                 areaId: doc.id,
                 cityId: area.cityId,
                 areaName: canonical.areaName,
-                areaNameUrdu: canonical.areaNameUrdu,
                 isMajor: canonical.isMajor,
               ),
               syncStatus: aliasSynced,

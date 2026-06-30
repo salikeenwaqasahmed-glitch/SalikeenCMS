@@ -137,20 +137,13 @@ class SalikDirectoryScreen extends ConsumerWidget {
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
                       final salik = filtered[index];
-                      final area = ref
-                              .watch(areaByIdProvider(salik.areaId))
+                      final city = ref
+                              .watch(cityByIdProvider(salik.cityId))
                               .valueOrNull ??
-                          findAreaInList(
-                            salik.areaId,
-                            ref
-                                    .watch(areasByCityProvider(salik.cityId))
-                                    .valueOrNull ??
-                                [],
-                          );
+                          findCity(salik.cityId);
                       return SalikListTile(
                         salik: salik,
-                        areaName: area?.areaName ?? '',
-                        areaNameUrdu: area?.areaNameUrdu ?? '',
+                        cityName: city?.cityName ?? '',
                         statusBadge: salik.isPending
                             ? l10n.t('approval_pending')
                             : null,

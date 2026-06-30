@@ -2,25 +2,25 @@ import '../../features/saliks/domain/entities/area.dart';
 import '../../features/saliks/domain/entities/city.dart';
 
 const List<City> kCities = [
-  City(cityId: 'c1', cityName: 'Karachi', cityNameUrdu: 'کراچی'),
-  City(cityId: 'c2', cityName: 'Lahore', cityNameUrdu: 'لاہور'),
-  City(cityId: 'c3', cityName: 'Islamabad', cityNameUrdu: 'اسلام آباد'),
-  City(cityId: 'c4', cityName: 'Peshawar', cityNameUrdu: 'پیشاور'),
-  City(cityId: 'c5', cityName: 'Multan', cityNameUrdu: 'ملتان'),
+  City(cityId: 'c1', cityName: 'Karachi / کراچی'),
+  City(cityId: 'c2', cityName: 'Lahore / لاہور'),
+  City(cityId: 'c3', cityName: 'Islamabad / اسلام آباد'),
+  City(cityId: 'c4', cityName: 'Peshawar / پیشاور'),
+  City(cityId: 'c5', cityName: 'Multan / ملتان'),
 ];
 
 const List<Area> kAreas = [
-  Area(areaId: 'a1', cityId: 'c1', areaName: 'Gulshan-e-Iqbal', areaNameUrdu: 'گلشن اقبال', isMajor: true),
-  Area(areaId: 'a2', cityId: 'c1', areaName: 'Karachi Central', areaNameUrdu: 'کراچی سینٹرل', isMajor: true),
-  Area(areaId: 'a3', cityId: 'c1', areaName: 'Karachi West', areaNameUrdu: 'کراچی ویسٹ'),
-  Area(areaId: 'a4', cityId: 'c1', areaName: 'Clifton', areaNameUrdu: 'کلفٹن'),
-  Area(areaId: 'a5', cityId: 'c2', areaName: 'Model Town', areaNameUrdu: 'ماڈل ٹاؤن', isMajor: true),
-  Area(areaId: 'a6', cityId: 'c2', areaName: 'Lahore South', areaNameUrdu: 'لاہور ساؤتھ'),
-  Area(areaId: 'a7', cityId: 'c2', areaName: 'Gulberg', areaNameUrdu: 'گلبرگ', isMajor: true),
-  Area(areaId: 'a8', cityId: 'c3', areaName: 'F-7/2', areaNameUrdu: 'ایف 7/2', isMajor: true),
-  Area(areaId: 'a9', cityId: 'c3', areaName: 'Islamabad North', areaNameUrdu: 'اسلام آباد نارتھ'),
-  Area(areaId: 'a10', cityId: 'c4', areaName: 'Hayatabad', areaNameUrdu: 'حیات آباد', isMajor: true),
-  Area(areaId: 'a11', cityId: 'c5', areaName: 'Multan Sector B', areaNameUrdu: 'ملتان سیکٹر بی'),
+  Area(areaId: 'a1', cityId: 'c1', areaName: 'Gulshan-e-Iqbal / گلشن اقبال', isMajor: true),
+  Area(areaId: 'a2', cityId: 'c1', areaName: 'Karachi Central / کراچی سینٹرل', isMajor: true),
+  Area(areaId: 'a3', cityId: 'c1', areaName: 'Karachi West / کراچی ویسٹ'),
+  Area(areaId: 'a4', cityId: 'c1', areaName: 'Clifton / کلفٹن'),
+  Area(areaId: 'a5', cityId: 'c2', areaName: 'Model Town / ماڈل ٹاؤن', isMajor: true),
+  Area(areaId: 'a6', cityId: 'c2', areaName: 'Lahore South / لاہور ساؤتھ'),
+  Area(areaId: 'a7', cityId: 'c2', areaName: 'Gulberg / گلبرگ', isMajor: true),
+  Area(areaId: 'a8', cityId: 'c3', areaName: 'F-7/2 / ایف 7/2', isMajor: true),
+  Area(areaId: 'a9', cityId: 'c3', areaName: 'Islamabad North / اسلام آباد نارتھ'),
+  Area(areaId: 'a10', cityId: 'c4', areaName: 'Hayatabad / حیات آباد', isMajor: true),
+  Area(areaId: 'a11', cityId: 'c5', areaName: 'Multan Sector B / ملتان سیکٹر بی'),
 ];
 
 City? findCity(String cityId) {
@@ -56,34 +56,33 @@ List<Area> areasForCity(String cityId) =>
 
 String normalizeCityLabel(String value) => value.trim().toLowerCase();
 
+Set<String> _nameTokens(String value) {
+  return value
+      .split('/')
+      .map(normalizeCityLabel)
+      .where((s) => s.isNotEmpty)
+      .toSet();
+}
+
 bool cityNamesOverlap(City a, City b) {
-  final aNames = {
-    normalizeCityLabel(a.cityName),
-    normalizeCityLabel(a.cityNameUrdu),
-  }..removeWhere((s) => s.isEmpty);
-  final bNames = {
-    normalizeCityLabel(b.cityName),
-    normalizeCityLabel(b.cityNameUrdu),
-  }..removeWhere((s) => s.isEmpty);
-  return aNames.intersection(bNames).isNotEmpty;
+  return _nameTokens(a.cityName).intersection(_nameTokens(b.cityName)).isNotEmpty;
 }
 
-bool cityMatchesNames(City city, {String nameEn = '', String nameUr = ''}) {
-  final inputs = {
-    normalizeCityLabel(nameEn),
-    normalizeCityLabel(nameUr),
-  }..removeWhere((s) => s.isEmpty);
-  if (inputs.isEmpty) return false;
-  final cityNames = {
-    normalizeCityLabel(city.cityName),
-    normalizeCityLabel(city.cityNameUrdu),
-  };
-  return inputs.any(cityNames.contains);
+bool cityMatchesNames(City city, {String name = ''}) {
+  final normalized = normalizeCityLabel(name);
+  if (normalized.isEmpty) return false;
+  return _nameTokens(city.cityName).contains(normalized);
 }
 
-City? findCanonicalCityByName({String nameEn = '', String nameUr = ''}) {
+City? findCanonicalCityByName({String name = ''}) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return null;
+  final normalized = normalizeCityLabel(trimmed);
   for (final city in kCities) {
-    if (cityMatchesNames(city, nameEn: nameEn, nameUr: nameUr)) {
+    if (cityMatchesNames(city, name: trimmed)) {
+      return city;
+    }
+    if (normalizeCityLabel(city.cityName) == normalized) {
       return city;
     }
   }
@@ -104,35 +103,19 @@ bool isDuplicateCanonicalCity(City city) {
 String normalizeAreaLabel(String value) => value.trim().toLowerCase();
 
 bool areaNamesOverlap(Area a, Area b) {
-  final aNames = {
-    normalizeAreaLabel(a.areaName),
-    normalizeAreaLabel(a.areaNameUrdu),
-  }..removeWhere((s) => s.isEmpty);
-  final bNames = {
-    normalizeAreaLabel(b.areaName),
-    normalizeAreaLabel(b.areaNameUrdu),
-  }..removeWhere((s) => s.isEmpty);
-  return aNames.intersection(bNames).isNotEmpty;
+  return _nameTokens(a.areaName).intersection(_nameTokens(b.areaName)).isNotEmpty;
 }
 
 Area? findCanonicalAreaByName({
   required String cityId,
-  String nameEn = '',
-  String nameUr = '',
+  String name = '',
 }) {
-  final inputs = {
-    normalizeAreaLabel(nameEn),
-    normalizeAreaLabel(nameUr),
-  }..removeWhere((s) => s.isEmpty);
-  if (inputs.isEmpty) return null;
+  final normalized = normalizeAreaLabel(name);
+  if (normalized.isEmpty) return null;
 
   for (final area in kAreas) {
     if (area.cityId != cityId) continue;
-    final areaNames = {
-      normalizeAreaLabel(area.areaName),
-      normalizeAreaLabel(area.areaNameUrdu),
-    };
-    if (inputs.any(areaNames.contains)) return area;
+    if (_nameTokens(area.areaName).contains(normalized)) return area;
   }
   return null;
 }

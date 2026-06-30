@@ -280,12 +280,9 @@ class SalikRepository {
     bool approvedOnly = true,
   }) async {
     final mobile = normalizePhone(candidate.mobileNumber);
-    final nameEn = normalizeEnglish(candidate.nameEnglish);
-    final fatherEn = normalizeEnglish(candidate.fatherNameEnglish);
-    final nameUr = normalizeUrdu(candidate.nameUrdu);
-    final fatherUr = normalizeUrdu(candidate.fatherNameUrdu);
-    final checkEnglish = nameEn.isNotEmpty && fatherEn.isNotEmpty;
-    final checkUrdu = nameUr.isNotEmpty && fatherUr.isNotEmpty;
+    final name = normalizeEnglish(candidate.name);
+    final father = normalizeEnglish(candidate.fatherName);
+    final checkName = name.isNotEmpty && father.isNotEmpty;
 
     final rows = approvedOnly
         ? await _approvedSaliksInScope(session)
@@ -306,19 +303,11 @@ class SalikRepository {
         return DuplicateSalikReason.mobile;
       }
 
-      if (checkEnglish) {
-        final existingName = normalizeEnglish(salik.nameEnglish);
-        final existingFather = normalizeEnglish(salik.fatherNameEnglish);
-        if (existingName == nameEn && existingFather == fatherEn) {
-          return DuplicateSalikReason.nameEnglish;
-        }
-      }
-
-      if (checkUrdu) {
-        final existingName = normalizeUrdu(salik.nameUrdu);
-        final existingFather = normalizeUrdu(salik.fatherNameUrdu);
-        if (existingName == nameUr && existingFather == fatherUr) {
-          return DuplicateSalikReason.nameUrdu;
+      if (checkName) {
+        final existingName = normalizeEnglish(salik.name);
+        final existingFather = normalizeEnglish(salik.fatherName);
+        if (existingName == name && existingFather == father) {
+          return DuplicateSalikReason.name;
         }
       }
     }

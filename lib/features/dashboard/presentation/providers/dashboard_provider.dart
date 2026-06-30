@@ -22,13 +22,11 @@ class CitySalikCount {
   const CitySalikCount({
     required this.cityId,
     required this.cityName,
-    required this.cityNameUrdu,
     required this.count,
   });
 
   final String cityId;
   final String cityName;
-  final String cityNameUrdu;
   final int count;
 }
 
@@ -61,7 +59,6 @@ final dashboardCityCountsProvider = Provider<List<CitySalikCount>>((ref) {
         (city) => CitySalikCount(
           cityId: city.cityId,
           cityName: city.cityName,
-          cityNameUrdu: city.cityNameUrdu,
           count: counts[city.cityId] ?? 0,
         ),
       )

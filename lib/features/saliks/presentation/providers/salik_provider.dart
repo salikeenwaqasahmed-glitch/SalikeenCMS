@@ -140,9 +140,8 @@ List<Salik> applySalikFilters(List<Salik> saliks, SalikFilter filter) {
   return saliks.where((s) {
     final q = filter.search.trim().toLowerCase();
     final matchesSearch = q.isEmpty ||
-        s.nameEnglish.toLowerCase().contains(q) ||
-        s.nameUrdu.contains(filter.search) ||
-        s.fatherNameEnglish.toLowerCase().contains(q) ||
+        s.name.toLowerCase().contains(q) ||
+        s.fatherName.toLowerCase().contains(q) ||
         s.mobileNumber.contains(filter.search) ||
         s.referenceName.toLowerCase().contains(q);
 

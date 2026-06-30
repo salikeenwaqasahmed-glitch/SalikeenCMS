@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/data/reference_data.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/utils/saved_bilingual_text.dart';
+import '../../../../core/utils/text_field_merge.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/widgets/app_loader.dart';
@@ -110,9 +110,7 @@ class _DuplicateGroupCardState extends ConsumerState<_DuplicateGroupCard> {
   String _reasonLabel(AppLocalizations l10n, DuplicateSalikReason reason) {
     return switch (reason) {
       DuplicateSalikReason.mobile => l10n.t('duplicate_match_mobile'),
-      DuplicateSalikReason.nameEnglish ||
-      DuplicateSalikReason.nameUrdu =>
-        l10n.t('duplicate_match_person'),
+      DuplicateSalikReason.name => l10n.t('duplicate_match_person'),
     };
   }
 
@@ -242,12 +240,8 @@ class _DuplicateGroupCardState extends ConsumerState<_DuplicateGroupCard> {
             ),
             const SizedBox(height: AppSpacing.sm),
             ...widget.group.saliks.map((salik) {
-              final area = ref.watch(areaByIdProvider(salik.areaId)).valueOrNull ??
-                  findAreaInList(
-                    salik.areaId,
-                    ref.watch(areasByCityProvider(salik.cityId)).valueOrNull ??
-                        [],
-                  );
+              final city = ref.watch(cityByIdProvider(salik.cityId)).valueOrNull ??
+                  findCity(salik.cityId);
               return Column(
                 children: [
                   RadioListTile<String>(
@@ -261,12 +255,10 @@ class _DuplicateGroupCardState extends ConsumerState<_DuplicateGroupCard> {
                           },
                     title: Text(l10n.t('keep_this_record')),
                     subtitle: Text(
-                      savedSalikName(
-                        nameEnglish: salik.nameEnglish,
-                        nameUrdu: salik.nameUrdu,
-                      ),
+                      salik.name.trim(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      textDirection: textDirectionFor(salik.name),
                     ),
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -276,8 +268,7 @@ class _DuplicateGroupCardState extends ConsumerState<_DuplicateGroupCard> {
                       Expanded(
                         child: SalikListTile(
                           salik: salik,
-                          areaName: area?.areaName ?? '',
-                          areaNameUrdu: area?.areaNameUrdu ?? '',
+                          cityName: city?.cityName ?? '',
                           onProfile: () =>
                               context.push('/saliks/profile/${salik.salikId}'),
                           statusBadge: salik.isPending

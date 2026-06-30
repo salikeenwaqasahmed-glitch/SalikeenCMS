@@ -7,7 +7,6 @@ import '../../../../core/router/form_navigation.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/contact_launcher.dart';
-import '../../../../core/utils/saved_bilingual_text.dart';
 import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/utils/submitter_display.dart';
 import '../../../../core/widgets/app_loader.dart';
@@ -125,10 +124,8 @@ class _SalikProfileScreenState extends ConsumerState<SalikProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         ProfileHeader(
-                          nameEnglish: salik.nameEnglish,
-                          nameUrdu: salik.nameUrdu,
-                          fatherNameEnglish: salik.fatherNameEnglish,
-                          fatherNameUrdu: salik.fatherNameUrdu,
+                          name: salik.name,
+                          fatherName: salik.fatherName,
                           badge: headerBadge,
                         ),
                         _AddedByLine(salik: salik),
@@ -210,19 +207,13 @@ class _SalikProfileScreenState extends ConsumerState<SalikProfileScreen> {
                             InfoRow(
                               icon: Icons.location_city,
                               label: l10n.t('city'),
-                              value: savedCityLabel(
-                                cityName: city?.cityName ?? '',
-                                cityNameUrdu: city?.cityNameUrdu ?? '',
-                              ),
+                              value: city?.cityName ?? '',
                               colorIndex: 0,
                             ),
                             InfoRow(
                               icon: Icons.map,
                               label: l10n.t('area'),
-                              value: savedAreaLabel(
-                                areaName: area?.areaName ?? '',
-                                areaNameUrdu: area?.areaNameUrdu ?? '',
-                              ),
+                              value: area?.areaName ?? '',
                               colorIndex: 1,
                             ),
                           ],

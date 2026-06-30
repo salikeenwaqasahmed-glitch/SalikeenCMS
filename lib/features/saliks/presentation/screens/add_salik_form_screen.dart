@@ -9,17 +9,17 @@ import '../../../../core/sync/sync_service.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/router/form_navigation.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/utils/localized_text.dart';
-import '../../../../core/utils/icon_colors.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/utils/form_validators.dart';
+import '../../../../core/utils/icon_colors.dart';
+import '../../../../core/utils/phone_number_utils.dart';
+import '../../../../core/utils/pakistan_phone.dart';
+import '../../../../core/utils/text_field_merge.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/pakistan_phone_field.dart';
 import '../../../../core/widgets/whatsapp_icon.dart';
-import '../../../../core/utils/phone_number_utils.dart';
-import '../../../../core/utils/pakistan_phone.dart';
 import '../../../../core/widgets/salik_widgets.dart';
 import '../../../../core/widgets/urdu_field.dart';
 import '../../../auth/domain/user_session.dart';
@@ -51,10 +51,8 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
   String _formLocale = 'en';
   bool _whatsappSameAsMobile = true;
 
-  final _nameEng = TextEditingController();
-  final _nameUrdu = TextEditingController();
-  final _fatherEng = TextEditingController();
-  final _fatherUrdu = TextEditingController();
+  final _name = TextEditingController();
+  final _fatherName = TextEditingController();
   final _mobile = TextEditingController();
   final _whatsapp = TextEditingController();
   CountryDialCode _mobileCountry = kDefaultCountry;
@@ -77,6 +75,31 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
 
   AppLocalizations get _fl10n => AppLocalizations(Locale(_formLocale));
 
+  bool get _isUrduForm => _formLocale == 'ur';
+
+  String _localeLabel(String value) {
+    final parts = value
+        .split('/')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '';
+    if (parts.length == 1) return parts.first;
+    return _isUrduForm ? parts.last : parts.first;
+  }
+
+  void _detectFormLocale(String name, String fatherName) {
+    final sample = name.trim().isNotEmpty ? name.trim() : fatherName.trim();
+    if (sample.isEmpty) {
+      _formLocale = 'en';
+      return;
+    }
+    _formLocale = containsUrduScript(sample) &&
+            !RegExp(r'[A-Za-z]').hasMatch(sample)
+        ? 'ur'
+        : 'en';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -84,12 +107,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
       if (mounted) setState(() {});
     }
 
-    for (final controller in [
-      _nameEng,
-      _nameUrdu,
-      _fatherEng,
-      _fatherUrdu,
-    ]) {
+    for (final controller in [_name, _fatherName]) {
       controller.addListener(refreshHeader);
     }
 
@@ -100,10 +118,8 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
 
   @override
   void dispose() {
-    _nameEng.dispose();
-    _nameUrdu.dispose();
-    _fatherEng.dispose();
-    _fatherUrdu.dispose();
+    _name.dispose();
+    _fatherName.dispose();
     _mobile.dispose();
     _whatsapp.dispose();
     _refName.dispose();
@@ -117,10 +133,9 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     List<City> cities,
     List<Area> areas,
   ) async {
-    _nameEng.text = salik.nameEnglish;
-    _nameUrdu.text = salik.nameUrdu;
-    _fatherEng.text = salik.fatherNameEnglish;
-    _fatherUrdu.text = salik.fatherNameUrdu;
+    _name.text = salik.name;
+    _fatherName.text = salik.fatherName;
+    _detectFormLocale(salik.name, salik.fatherName);
     final mobileParsed = PhoneNumberUtils.parseStored(salik.mobileNumber);
     final whatsappParsed = PhoneNumberUtils.parseStored(salik.whatsappNumber);
     _mobileCountry = mobileParsed.country;
@@ -151,45 +166,21 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     final city =
         findCityInList(_cityId, cities) ?? await repo.resolveCity(_cityId);
     if (city != null) {
-      _citySearch.text = localizedCityName(
-        cityName: city.cityName,
-        cityNameUrdu: city.cityNameUrdu,
-        preferUrdu: _formLocale == 'ur',
-      );
+      _citySearch.text = _localeLabel(city.cityName);
     }
     final area =
         findAreaInList(_areaId, areas) ?? await repo.resolveArea(_areaId);
     if (area != null) {
-      _areaSearch.text = localizedAreaName(
-        areaName: area.areaName,
-        areaNameUrdu: area.areaNameUrdu,
-        preferUrdu: _formLocale == 'ur',
-      );
+      _areaSearch.text = _localeLabel(area.areaName);
     }
   }
 
-  bool _hasNameInOneLanguage() {
-    if (_formLocale == 'en') {
-      return _nameEng.text.trim().isNotEmpty &&
-          _fatherEng.text.trim().isNotEmpty;
-    }
-    return _nameUrdu.text.trim().isNotEmpty &&
-        _fatherUrdu.text.trim().isNotEmpty;
+  bool _hasRequiredNames() {
+    return _name.text.trim().isNotEmpty && _fatherName.text.trim().isNotEmpty;
   }
-
-  String _saveNameEnglish() =>
-      _formLocale == 'en' ? _nameEng.text.trim() : '';
-
-  String _saveNameUrdu() => _formLocale == 'ur' ? _nameUrdu.text.trim() : '';
-
-  String _saveFatherEnglish() =>
-      _formLocale == 'en' ? _fatherEng.text.trim() : '';
-
-  String _saveFatherUrdu() =>
-      _formLocale == 'ur' ? _fatherUrdu.text.trim() : '';
 
   bool _validateAll(AppLocalizations l10n) {
-    if (!_hasNameInOneLanguage() ||
+    if (!_hasRequiredNames() ||
         FormValidators.phoneField(
               _mobile.text,
               l10n,
@@ -247,10 +238,8 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
 
     final salik = Salik(
       salikId: widget.salikId ?? '',
-      nameEnglish: _saveNameEnglish(),
-      nameUrdu: _saveNameUrdu(),
-      fatherNameEnglish: _saveFatherEnglish(),
-      fatherNameUrdu: _saveFatherUrdu(),
+      name: _name.text.trim(),
+      fatherName: _fatherName.text.trim(),
       mobileNumber: mobile,
       whatsappNumber: whatsapp,
       cityId: _cityId,
@@ -329,7 +318,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
 
   Future<void> _pickOrCreateCity(List<City> cities) async {
     final fl10n = _fl10n;
-    final isUrdu = _formLocale == 'ur';
+    final isUrdu = _isUrduForm;
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) {
@@ -352,10 +341,8 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                 width: double.maxFinite,
                 child: ListView(
                   children: cities.map((city) {
-                    final label =
-                        isUrdu ? city.cityNameUrdu : city.cityName;
                     return ListTile(
-                      title: Text(label),
+                      title: Text(_localeLabel(city.cityName)),
                       onTap: () => Navigator.pop(ctx, 'pick:${city.cityId}'),
                     );
                   }).toList(),
@@ -386,19 +373,13 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
         _cityId = id;
         _areaId = '';
         _areaSearch.clear();
-        _citySearch.text = isUrdu ? city.cityNameUrdu : city.cityName;
+        _citySearch.text = _localeLabel(city.cityName);
       });
     } else if (result.startsWith('new:')) {
       final name = result.substring(4);
       if (name.isEmpty) return;
       final existingInList = cities.cast<City?>().firstWhere(
-            (city) =>
-                city != null &&
-                cityMatchesNames(
-                  city,
-                  nameEn: isUrdu ? '' : name,
-                  nameUr: isUrdu ? name : '',
-                ),
+            (city) => city != null && cityMatchesNames(city, name: name),
             orElse: () => null,
           );
       if (existingInList != null) {
@@ -406,18 +387,14 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
           _cityId = existingInList.cityId;
           _areaId = '';
           _areaSearch.clear();
-          _citySearch.text =
-              isUrdu ? existingInList.cityNameUrdu : existingInList.cityName;
+          _citySearch.text = _localeLabel(existingInList.cityName);
         });
         return;
       }
       setState(() => _loading = true);
       try {
         final repo = ref.read(areaRepositoryProvider);
-        final city = await repo.createCity(
-          nameEn: isUrdu ? '' : name,
-          nameUr: isUrdu ? name : '',
-        );
+        final city = await repo.createCity(name: name);
         if (mounted) {
           ref.invalidate(citiesProvider);
           ref.invalidate(areasByCityProvider(city.cityId));
@@ -425,7 +402,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
             _cityId = city.cityId;
             _areaId = '';
             _areaSearch.clear();
-            _citySearch.text = isUrdu ? city.cityNameUrdu : city.cityName;
+            _citySearch.text = _localeLabel(city.cityName);
           });
         }
       } finally {
@@ -437,7 +414,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
   Future<void> _pickOrCreateArea(List<Area> areas) async {
     if (_cityId.isEmpty) return;
     final fl10n = _fl10n;
-    final isUrdu = _formLocale == 'ur';
+    final isUrdu = _isUrduForm;
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) {
@@ -460,10 +437,8 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                 width: double.maxFinite,
                 child: ListView(
                   children: areas.map((area) {
-                    final label =
-                        isUrdu ? area.areaNameUrdu : area.areaName;
                     return ListTile(
-                      title: Text(label),
+                      title: Text(_localeLabel(area.areaName)),
                       onTap: () => Navigator.pop(ctx, 'pick:${area.areaId}'),
                     );
                   }).toList(),
@@ -492,7 +467,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
       final area = areas.firstWhere((a) => a.areaId == id);
       setState(() {
         _areaId = id;
-        _areaSearch.text = isUrdu ? area.areaNameUrdu : area.areaName;
+        _areaSearch.text = _localeLabel(area.areaName);
       });
     } else if (result.startsWith('new:')) {
       final name = result.substring(4);
@@ -500,16 +475,12 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
       setState(() => _loading = true);
       try {
         final repo = ref.read(areaRepositoryProvider);
-        final area = await repo.createArea(
-          cityId: _cityId,
-          nameEn: isUrdu ? '' : name,
-          nameUr: isUrdu ? name : '',
-        );
+        final area = await repo.createArea(cityId: _cityId, name: name);
         if (mounted) {
           ref.invalidate(areasByCityProvider(_cityId));
           setState(() {
             _areaId = area.areaId;
-            _areaSearch.text = isUrdu ? area.areaNameUrdu : area.areaName;
+            _areaSearch.text = _localeLabel(area.areaName);
           });
         }
       } finally {
@@ -633,7 +604,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                 ),
                 child: SegmentPillBar(
                   labels: const ['English', 'اردو'],
-                  selectedIndex: _formLocale == 'ur' ? 1 : 0,
+                  selectedIndex: _isUrduForm ? 1 : 0,
                   onSelected: (i) {
                     setState(() {
                       _formLocale = i == 1 ? 'ur' : 'en';
@@ -662,10 +633,8 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       ProfileHeader(
-                        nameEnglish: _nameEng.text,
-                        nameUrdu: _nameUrdu.text,
-                        fatherNameEnglish: _fatherEng.text,
-                        fatherNameUrdu: _fatherUrdu.text,
+                        name: _name.text,
+                        fatherName: _fatherName.text,
                         badge: _sahibMehfil
                             ? Chip(
                                 label: Text(l10n.t('sahib_e_mehfil')),
@@ -677,9 +646,9 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                       InfoGroupCard(
                         title: l10n.t('step_personal'),
                         children: [
-                          if (_formLocale == 'en') ...[
+                          if (!_isUrduForm) ...[
                             TextFormField(
-                              controller: _nameEng,
+                              controller: _name,
                               decoration: InputDecoration(
                                 labelText: fl10n.t('name_english'),
                                 prefixIcon: IconColors.icon(
@@ -693,7 +662,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             TextFormField(
-                              controller: _fatherEng,
+                              controller: _fatherName,
                               decoration: InputDecoration(
                                 labelText: fl10n.t('father_english'),
                                 prefixIcon: IconColors.icon(
@@ -707,7 +676,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                             ),
                           ] else ...[
                             UrduField(
-                              controller: _nameUrdu,
+                              controller: _name,
                               label: fl10n.t('name_urdu'),
                               prefixIcon: Icons.person_outline,
                               validator: (v) =>
@@ -715,7 +684,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             UrduField(
-                              controller: _fatherUrdu,
+                              controller: _fatherName,
                               label: fl10n.t('father_urdu'),
                               prefixIcon: Icons.person_outline,
                               validator: (v) =>

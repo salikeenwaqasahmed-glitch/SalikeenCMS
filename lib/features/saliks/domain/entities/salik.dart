@@ -1,12 +1,11 @@
 import 'approval_status.dart';
+import '../../../../core/utils/text_field_merge.dart';
 
 class Salik {
   const Salik({
     required this.salikId,
-    required this.nameEnglish,
-    required this.nameUrdu,
-    required this.fatherNameEnglish,
-    required this.fatherNameUrdu,
+    required this.name,
+    required this.fatherName,
     required this.mobileNumber,
     required this.whatsappNumber,
     required this.cityId,
@@ -35,10 +34,8 @@ class Salik {
   });
 
   final String salikId;
-  final String nameEnglish;
-  final String nameUrdu;
-  final String fatherNameEnglish;
-  final String fatherNameUrdu;
+  final String name;
+  final String fatherName;
   final String mobileNumber;
   final String whatsappNumber;
   final String cityId;
@@ -71,10 +68,8 @@ class Salik {
 
   Salik copyWith({
     String? salikId,
-    String? nameEnglish,
-    String? nameUrdu,
-    String? fatherNameEnglish,
-    String? fatherNameUrdu,
+    String? name,
+    String? fatherName,
     String? mobileNumber,
     String? whatsappNumber,
     String? cityId,
@@ -103,10 +98,8 @@ class Salik {
   }) {
     return Salik(
       salikId: salikId ?? this.salikId,
-      nameEnglish: nameEnglish ?? this.nameEnglish,
-      nameUrdu: nameUrdu ?? this.nameUrdu,
-      fatherNameEnglish: fatherNameEnglish ?? this.fatherNameEnglish,
-      fatherNameUrdu: fatherNameUrdu ?? this.fatherNameUrdu,
+      name: name ?? this.name,
+      fatherName: fatherName ?? this.fatherName,
       mobileNumber: mobileNumber ?? this.mobileNumber,
       whatsappNumber: whatsappNumber ?? this.whatsappNumber,
       cityId: cityId ?? this.cityId,
@@ -138,10 +131,18 @@ class Salik {
   factory Salik.fromMap(Map<String, dynamic> map, {String? id}) {
     return Salik(
       salikId: id ?? map['salikId'] as String? ?? '',
-      nameEnglish: map['nameEnglish'] as String? ?? '',
-      nameUrdu: map['nameUrdu'] as String? ?? '',
-      fatherNameEnglish: map['fatherNameEnglish'] as String? ?? '',
-      fatherNameUrdu: map['fatherNameUrdu'] as String? ?? '',
+      name: readUnifiedText(
+        map,
+        key: 'name',
+        legacyPrimaryKey: 'nameEnglish',
+        legacySecondaryKey: 'nameUrdu',
+      ),
+      fatherName: readUnifiedText(
+        map,
+        key: 'fatherName',
+        legacyPrimaryKey: 'fatherNameEnglish',
+        legacySecondaryKey: 'fatherNameUrdu',
+      ),
       mobileNumber: map['mobileNumber'] as String? ?? '',
       whatsappNumber: map['whatsappNumber'] as String? ?? '',
       cityId: map['cityId'] as String? ?? '',
@@ -174,10 +175,8 @@ class Salik {
 
   Map<String, dynamic> toMap() => {
         'salikId': salikId,
-        'nameEnglish': nameEnglish,
-        'nameUrdu': nameUrdu,
-        'fatherNameEnglish': fatherNameEnglish,
-        'fatherNameUrdu': fatherNameUrdu,
+        'name': name,
+        'fatherName': fatherName,
         'mobileNumber': mobileNumber,
         'whatsappNumber': whatsappNumber,
         'cityId': cityId,

@@ -6,32 +6,27 @@ import '../theme/app_text_styles.dart';
 import '../utils/contact_launcher.dart';
 import '../utils/icon_colors.dart';
 import '../utils/salik_contact_preference.dart';
+import '../utils/text_field_merge.dart';
 import 'salik_avatar.dart';
 import 'whatsapp_icon.dart';
 
 class ProfileHeader extends StatelessWidget {
   const ProfileHeader({
-    required this.nameEnglish,
-    required this.nameUrdu,
-    required this.fatherNameEnglish,
-    required this.fatherNameUrdu,
+    required this.name,
+    required this.fatherName,
     super.key,
     this.badge,
   });
 
-  final String nameEnglish;
-  final String nameUrdu;
-  final String fatherNameEnglish;
-  final String fatherNameUrdu;
+  final String name;
+  final String fatherName;
   final Widget? badge;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final nameEn = nameEnglish.trim();
-    final nameUr = nameUrdu.trim();
-    final fatherEn = fatherNameEnglish.trim();
-    final fatherUr = fatherNameUrdu.trim();
+    final displayName = name.trim();
+    final displayFather = fatherName.trim();
 
     return Column(
       children: [
@@ -39,64 +34,33 @@ class ProfileHeader extends StatelessWidget {
           badge!,
           const SizedBox(height: AppSpacing.sm),
         ],
-        if (nameEn.isNotEmpty)
+        if (displayName.isNotEmpty)
           Text(
-            nameEn,
+            displayName,
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
+            textDirection: textDirectionFor(displayName),
             style: AppTextStyles.forLocale(
-              false,
+              containsUrduScript(displayName),
               fontSize: 22,
               fontWeight: FontWeight.w700,
             ),
           ),
-        if (nameUr.isNotEmpty) ...[
-          if (nameEn.isNotEmpty) const SizedBox(height: 2),
-          Text(
-            nameUr,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textDirection: TextDirection.rtl,
-            style: AppTextStyles.forLocale(
-              true,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-        if (fatherEn.isNotEmpty || fatherUr.isNotEmpty) ...[
+        if (displayFather.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.xs),
-          if (fatherEn.isNotEmpty)
-            Text(
-              '${l10n.t('father_name')}: $fatherEn',
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.forLocale(
-                false,
-                fontSize: 14,
-                color: Colors.grey.shade600,
-              ),
+          Text(
+            '${l10n.t('father_name')}: $displayFather',
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textDirection: textDirectionFor(displayFather),
+            style: AppTextStyles.forLocale(
+              containsUrduScript(displayFather),
+              fontSize: 14,
+              color: Colors.grey.shade600,
             ),
-          if (fatherUr.isNotEmpty && fatherUr != fatherEn) ...[
-            const SizedBox(height: 2),
-            Text(
-              fatherEn.isEmpty
-                  ? '${l10n.t('father_name')}: $fatherUr'
-                  : fatherUr,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textDirection: TextDirection.rtl,
-              style: AppTextStyles.forLocale(
-                true,
-                fontSize: 14,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
+          ),
         ],
       ],
     );
@@ -547,15 +511,13 @@ class SalikListTile extends StatelessWidget {
   const SalikListTile({
     required this.salik,
     required this.onProfile,
-    this.areaName = '',
-    this.areaNameUrdu = '',
+    this.cityName = '',
     this.statusBadge,
     super.key,
   });
 
   final Salik salik;
-  final String areaName;
-  final String areaNameUrdu;
+  final String cityName;
   final VoidCallback onProfile;
   final String? statusBadge;
 
@@ -602,10 +564,8 @@ class SalikListTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: _SalikCardInfo(
-                    l10n: l10n,
                     salik: salik,
-                    areaName: areaName,
-                    areaNameUrdu: areaNameUrdu,
+                    cityName: cityName,
                     onProfile: onProfile,
                   ),
                 ),
@@ -632,33 +592,27 @@ class SalikListTile extends StatelessWidget {
 
 class _SalikCardInfo extends StatelessWidget {
   const _SalikCardInfo({
-    required this.l10n,
     required this.salik,
-    required this.areaName,
-    required this.areaNameUrdu,
+    required this.cityName,
     required this.onProfile,
   });
 
-  final AppLocalizations l10n;
   final Salik salik;
-  final String areaName;
-  final String areaNameUrdu;
+  final String cityName;
   final VoidCallback onProfile;
 
-  String get _avatarName {
-    final english = salik.nameEnglish.trim();
-    if (english.isNotEmpty) return english;
-    return salik.nameUrdu.trim();
-  }
+  static const _lineStyle = TextStyle(fontSize: 13, height: 1.25);
+  static final _mutedStyle = TextStyle(
+    fontSize: 12,
+    height: 1.25,
+    color: Colors.grey.shade600,
+  );
 
   @override
   Widget build(BuildContext context) {
-    final nameEnglish = salik.nameEnglish.trim();
-    final nameUrdu = salik.nameUrdu.trim();
-    final fatherEnglish = salik.fatherNameEnglish.trim();
-    final fatherUrdu = salik.fatherNameUrdu.trim();
-    final areaEn = areaName.trim();
-    final areaUr = areaNameUrdu.trim();
+    final displayName = salik.name.trim();
+    final displayFather = salik.fatherName.trim();
+    final displayCity = cityName.trim();
 
     return InkWell(
       borderRadius: BorderRadius.circular(12),
@@ -666,96 +620,57 @@ class _SalikCardInfo extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SalikAvatar(name: _avatarName, radius: 20),
+          SalikAvatar(name: displayName, radius: 20),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (nameEnglish.isNotEmpty)
+                if (displayName.isNotEmpty)
                   Text(
-                    nameEnglish,
+                    displayName,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.forLocale(
-                      false,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    textAlign: TextAlign.start,
+                    textDirection: TextDirection.ltr,
+                    style: _lineStyle.copyWith(fontWeight: FontWeight.w700),
                   ),
-                if (nameUrdu.isNotEmpty) ...[
-                  if (nameEnglish.isNotEmpty) const SizedBox(height: 2),
-                  Text(
-                    nameUrdu,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textDirection: TextDirection.rtl,
-                    style: AppTextStyles.forLocale(
-                      true,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-                if (fatherEnglish.isNotEmpty) ...[
+                if (displayFather.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
-                    '${l10n.t('father_name')}: $fatherEnglish',
+                    displayFather,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
+                    textAlign: TextAlign.start,
+                    textDirection: TextDirection.ltr,
+                    style: _mutedStyle,
                   ),
                 ],
-                if (fatherUrdu.isNotEmpty &&
-                    fatherUrdu != fatherEnglish) ...[
+                if (salik.mobileNumber.trim().isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
-                    fatherEnglish.isEmpty
-                        ? '${l10n.t('father_name')}: $fatherUrdu'
-                        : fatherUrdu,
-                    maxLines: 2,
+                    salik.mobileNumber,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    textDirection: TextDirection.rtl,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
+                    textAlign: TextAlign.start,
+                    textDirection: TextDirection.ltr,
+                    style: _lineStyle.copyWith(fontWeight: FontWeight.w500),
+                  ),
+                ],
+                if (displayCity.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    displayCity,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.start,
+                    textDirection: TextDirection.ltr,
+                    style: _mutedStyle.copyWith(
+                      color: Colors.grey.shade500,
+                      fontSize: 11,
                     ),
                   ),
                 ],
-                const SizedBox(height: 2),
-                Text(
-                  salik.mobileNumber,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                if (areaEn.isNotEmpty)
-                  Text(
-                    areaEn,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                if (areaUr.isNotEmpty && areaUr != areaEn)
-                  Text(
-                    areaUr,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textDirection: TextDirection.rtl,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
               ],
             ),
           ),

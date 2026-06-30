@@ -13,8 +13,7 @@ String mapFirebaseError(Object error, AppLocalizations l10n) {
     switch (error.reason) {
       case DuplicateSalikReason.mobile:
         return l10n.t('duplicate_mobile');
-      case DuplicateSalikReason.nameEnglish:
-      case DuplicateSalikReason.nameUrdu:
+      case DuplicateSalikReason.name:
         return l10n.t('duplicate_person');
     }
   }

@@ -32,7 +32,6 @@ class AreaRepository {
             (r) => City(
               cityId: r.cityId,
               cityName: r.cityName,
-              cityNameUrdu: r.cityNameUrdu,
             ),
           )
           .toList()
@@ -54,7 +53,6 @@ class AreaRepository {
               areaId: r.areaId,
               cityId: r.cityId,
               areaName: r.areaName,
-              areaNameUrdu: r.areaNameUrdu,
               isMajor: r.isMajor,
             ),
           )
@@ -77,7 +75,6 @@ class AreaRepository {
       return City(
         cityId: row.cityId,
         cityName: row.cityName,
-        cityNameUrdu: row.cityNameUrdu,
       );
     }
 
@@ -99,7 +96,6 @@ class AreaRepository {
         areaId: row.areaId,
         cityId: row.cityId,
         areaName: row.areaName,
-        areaNameUrdu: row.areaNameUrdu,
         isMajor: row.isMajor,
       );
     }
@@ -115,7 +111,6 @@ class AreaRepository {
           (r) => City(
             cityId: r.cityId,
             cityName: r.cityName,
-            cityNameUrdu: r.cityNameUrdu,
           ),
         )
         .toList();
@@ -131,7 +126,6 @@ class AreaRepository {
             areaId: r.areaId,
             cityId: r.cityId,
             areaName: r.areaName,
-            areaNameUrdu: r.areaNameUrdu,
             isMajor: r.isMajor,
           ),
         )
@@ -139,21 +133,18 @@ class AreaRepository {
   }
 
   Future<City?> findCityByName(String name) async {
-    return findCityByNames(nameEn: name, nameUr: name);
+    return findCityByNames(name: name);
   }
 
-  Future<City?> findCityByNames({
-    String nameEn = '',
-    String nameUr = '',
-  }) async {
-    final canonical = findCanonicalCityByName(nameEn: nameEn, nameUr: nameUr);
+  Future<City?> findCityByNames({String name = ''}) async {
+    final canonical = findCanonicalCityByName(name: name);
     if (canonical != null) {
       await _db.upsertCity(cityToCompanion(canonical));
       return canonical;
     }
 
     for (final city in await _allCities()) {
-      if (cityMatchesNames(city, nameEn: nameEn, nameUr: nameUr)) {
+      if (cityMatchesNames(city, name: name)) {
         return city;
       }
     }
@@ -165,26 +156,21 @@ class AreaRepository {
     if (normalized.isEmpty) return null;
 
     for (final area in await _areasForCityLocal(cityId)) {
-      if (area.areaName.toLowerCase() == normalized ||
-          area.areaNameUrdu.toLowerCase() == normalized) {
+      if (area.areaName.trim().toLowerCase() == normalized) {
         return area;
       }
     }
     return null;
   }
 
-  Future<City> createCity({
-    required String nameEn,
-    required String nameUr,
-  }) async {
-    final existing = await findCityByNames(nameEn: nameEn, nameUr: nameUr);
+  Future<City> createCity({required String name}) async {
+    final existing = await findCityByNames(name: name);
     if (existing != null) return existing;
 
     final id = _uuid.v4();
     final city = City(
       cityId: id,
-      cityName: nameEn,
-      cityNameUrdu: nameUr,
+      cityName: name.trim(),
     );
     await _db.upsertCity(cityToCompanion(city, syncStatus: pendingCreate));
     await _db.enqueueSync(
@@ -201,21 +187,16 @@ class AreaRepository {
 
   Future<Area> createArea({
     required String cityId,
-    required String nameEn,
-    required String nameUr,
+    required String name,
   }) async {
-    final existing = await findAreaByName(
-      cityId,
-      nameEn.isNotEmpty ? nameEn : nameUr,
-    );
+    final existing = await findAreaByName(cityId, name);
     if (existing != null) return existing;
 
     final id = _uuid.v4();
     final area = Area(
       areaId: id,
       cityId: cityId,
-      areaName: nameEn,
-      areaNameUrdu: nameUr,
+      areaName: name.trim(),
     );
     await _db.upsertArea(areaToCompanion(area, syncStatus: pendingCreate));
     await _db.enqueueSync(
