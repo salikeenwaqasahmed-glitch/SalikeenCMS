@@ -10,6 +10,8 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
+import '../../../../core/widgets/app_text.dart';
+import '../../../../core/widgets/env_badge.dart';
 import '../../../../core/widgets/section_title.dart';
 import '../../../../core/widgets/user_scope_banner.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -78,6 +80,8 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                           Text(session.email, maxLines: 1, overflow: TextOverflow.ellipsis),
                           const SizedBox(height: AppSpacing.sm),
+                          const EnvBadge(compact: true, showProject: true),
+                          const SizedBox(height: AppSpacing.sm),
                           UserScopeBanner(session: session, compact: true),
                         ],
                       ),
@@ -94,17 +98,19 @@ class SettingsScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.badge),
                   title: Text(l10n.t('role')),
-                  subtitle: Text(
+                  subtitle: AppText(
                     session != null ? l10n.t(session.role.l10nKey()) : '-',
+                    maxLines: 1,
                   ),
                 ),
                 ListTile(
                   leading: const Icon(Icons.wc),
                   title: Text(l10n.t('gender')),
-                  subtitle: Text(
+                  subtitle: AppText(
                     session?.gender == 'Female'
                         ? l10n.t('female')
                         : l10n.t('male'),
+                    maxLines: 1,
                   ),
                 ),
               ],

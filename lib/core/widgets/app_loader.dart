@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
 import 'app_logo.dart';
+import 'env_badge.dart';
 
 enum AppLoaderSize { small, medium, large }
 
@@ -149,12 +150,18 @@ class AppLoadingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: AppLoader(
-        size: AppLoaderSize.large,
-        color: color,
-        message: message,
-      ),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Center(
+          child: AppLoader(
+            size: AppLoaderSize.large,
+            color: color,
+            message: message,
+          ),
+        ),
+        const EnvBadgeTop(),
+      ],
     );
   }
 }

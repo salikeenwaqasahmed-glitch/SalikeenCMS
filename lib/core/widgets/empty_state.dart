@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../localization/app_localizations.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
+import 'app_text.dart';
 
 class EmptyState extends StatelessWidget {
   const EmptyState({
@@ -27,9 +28,10 @@ class EmptyState extends StatelessWidget {
           children: [
             Icon(icon, size: 56, color: Colors.grey.shade400),
             const SizedBox(height: AppSpacing.md),
-            Text(
+            AppText(
               message,
               textAlign: TextAlign.center,
+              maxLines: 4,
               style: AppTextStyles.forLocale(
                 false,
                 fontSize: 16,
@@ -38,7 +40,10 @@ class EmptyState extends StatelessWidget {
             ),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: AppSpacing.md),
-              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+              FilledButton(
+                onPressed: onAction,
+                child: AppText(actionLabel!, maxLines: 1),
+              ),
             ],
           ],
         ),

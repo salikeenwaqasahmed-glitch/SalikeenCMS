@@ -16,9 +16,22 @@ import '../utils/access_control.dart';
 import '../widgets/offline_banner.dart';
 import '../widgets/salik_widgets.dart';
 
-final _routerRefreshProvider = Provider<ValueNotifier<int>>((ref) {
+/// Safe before [GoRouter] has matched its first route (avoids `No element`).
+String routerMatchedLocation(GoRouter router, {String fallback = '/login'}) {
+  final config = router.routerDelegate.currentConfiguration;
+  if (config.isEmpty) return fallback;
+  final path = config.uri.path;
+  return path.isEmpty ? fallback : path;
+}
+
+final routerRefreshNotifierProvider = Provider<ValueNotifier<int>>((ref) {
   final notifier = ValueNotifier(0);
   ref.listen(authStateProvider, (prev, next) {
+    if (prev?.isLoading == true && next.isLoading == false) {
+      notifier.value++;
+      return;
+    }
+
     final prevSession = prev?.valueOrNull;
     final nextSession = next.valueOrNull;
     if (prevSession == null && nextSession == null) return;
@@ -34,21 +47,29 @@ final _routerRefreshProvider = Provider<ValueNotifier<int>>((ref) {
   return notifier;
 });
 
+/// Nudge GoRouter redirect after sign-in before [authStateProvider] stream catches up.
+void notifyRouterAuthChanged(Ref ref) {
+  ref.read(routerRefreshNotifierProvider).value++;
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final refresh = ref.watch(_routerRefreshProvider);
+  final refresh = ref.watch(routerRefreshNotifierProvider);
 
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/login',
     refreshListenable: refresh,
     redirect: (context, state) {
       final authState = ref.read(authStateProvider);
-      if (authState.isLoading) return null;
+      final onLogin = state.matchedLocation == '/login';
+
+      if (authState.isLoading) {
+        return onLogin ? null : '/login';
+      }
 
       final isLoggedIn = authState.valueOrNull != null;
-      final loggingIn = state.matchedLocation == '/login';
 
-      if (!isLoggedIn && !loggingIn) return '/login';
-      if (isLoggedIn && loggingIn) return '/';
+      if (!isLoggedIn && !onLogin) return '/login';
+      if (isLoggedIn && onLogin) return '/';
       return null;
     },
     routes: [

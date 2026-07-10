@@ -5,6 +5,7 @@ import '../localization/app_localizations.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_theme.dart';
 import '../utils/access_control.dart';
+import 'app_text.dart';
 
 class UserScopeBanner extends StatelessWidget {
   const UserScopeBanner({
@@ -25,8 +26,9 @@ class UserScopeBanner extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (!compact) ...[
-          Text(
+          AppText(
             l10n.t('your_access'),
+            maxLines: 1,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -50,7 +52,7 @@ class UserScopeBanner extends StatelessWidget {
         ),
         if (!compact) ...[
           const SizedBox(height: AppSpacing.xs),
-          Text(
+          AppText(
             isAdmin
                 ? l10n.t('scope_all_genders')
                 : session.gender == 'Female'
@@ -118,10 +120,9 @@ class _ScopeChip extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(
+      child: AppText(
         label,
         maxLines: 1,
-        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: color,
           fontSize: 12,

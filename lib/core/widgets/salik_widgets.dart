@@ -77,6 +77,8 @@ class SalikContactActions extends StatelessWidget {
     this.iconSize = 20,
     this.mainAxisAlignment = MainAxisAlignment.end,
     this.showLabels = false,
+    this.labelFontSize = 8,
+    this.railWidth = 92,
   });
 
   final String mobileNumber;
@@ -84,6 +86,8 @@ class SalikContactActions extends StatelessWidget {
   final double iconSize;
   final MainAxisAlignment mainAxisAlignment;
   final bool showLabels;
+  final double labelFontSize;
+  final double railWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -96,6 +100,8 @@ class SalikContactActions extends StatelessWidget {
         mobileNumber: mobileNumber,
         whatsappNumber: whatsappNumber,
         iconSize: iconSize,
+        labelFontSize: labelFontSize,
+        width: railWidth,
       );
     }
 
@@ -225,14 +231,14 @@ class _SalikCardContactButtonState extends State<SalikCardContactButton> {
             ),
             _ContactPickerTile(
               label: l10n.t('wa_message'),
-              icon: WhatsAppMessageIcon(size: 22),
+              icon: const WhatsAppMessageIcon(size: 22),
               selected: _preferred == SalikContactAction.whatsappMessage,
               onTap: () =>
                   Navigator.pop(ctx, SalikContactAction.whatsappMessage),
             ),
             _ContactPickerTile(
               label: l10n.t('wa_call'),
-              icon: WhatsAppCallIcon(size: 22),
+              icon: const WhatsAppCallIcon(size: 22),
               selected: _preferred == SalikContactAction.whatsappCall,
               onTap: () => Navigator.pop(ctx, SalikContactAction.whatsappCall),
             ),
@@ -257,31 +263,14 @@ class _SalikCardContactButtonState extends State<SalikCardContactButton> {
         borderRadius: BorderRadius.circular(20),
         child: Padding(
           padding: const EdgeInsets.all(6),
-          child: _actionIcon(_preferred),
+          child: IconColors.icon(
+            Icons.phone_in_talk,
+            size: widget.iconSize,
+            colorIndex: 0,
+          ),
         ),
       ),
     );
-  }
-
-  Widget _actionIcon(SalikContactAction action) {
-    switch (action) {
-      case SalikContactAction.call:
-        return IconColors.icon(
-          Icons.phone,
-          size: widget.iconSize,
-          colorIndex: 0,
-        );
-      case SalikContactAction.sms:
-        return IconColors.icon(
-          Icons.sms_outlined,
-          size: widget.iconSize,
-          colorIndex: 1,
-        );
-      case SalikContactAction.whatsappMessage:
-        return WhatsAppMessageIcon(size: widget.iconSize);
-      case SalikContactAction.whatsappCall:
-        return WhatsAppCallIcon(size: widget.iconSize);
-    }
   }
 }
 
@@ -316,11 +305,15 @@ class SalikCardContactRail extends StatelessWidget {
     required this.whatsappNumber,
     super.key,
     this.iconSize = 14,
+    this.labelFontSize = 8,
+    this.width = 92,
   });
 
   final String mobileNumber;
   final String whatsappNumber;
   final double iconSize;
+  final double labelFontSize;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
@@ -329,71 +322,74 @@ class SalikCardContactRail extends StatelessWidget {
         phonesMatch(mobileNumber, whatsappNumber) ? mobileNumber : whatsappNumber;
     final labelStyle = AppTextStyles.forLocale(
       false,
-      fontSize: 8,
+      fontSize: labelFontSize,
       fontWeight: FontWeight.w600,
       color: Colors.grey.shade600,
     );
 
+    final rail = Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _LabeledContactAction(
+                label: l10n.t('call'),
+                labelStyle: labelStyle,
+                icon: IconColors.icon(
+                  Icons.phone,
+                  size: iconSize,
+                  colorIndex: 0,
+                ),
+                onPressed: () => ContactLauncher.call(mobileNumber),
+              ),
+            ),
+            Expanded(
+              child: _LabeledContactAction(
+                label: l10n.t('message'),
+                labelStyle: labelStyle,
+                icon: IconColors.icon(
+                  Icons.sms_outlined,
+                  size: iconSize,
+                  colorIndex: 1,
+                ),
+                onPressed: () => ContactLauncher.sms(mobileNumber),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Row(
+          children: [
+            Expanded(
+              child: _LabeledContactAction(
+                label: l10n.t('wa_message'),
+                labelStyle: labelStyle,
+                icon: WhatsAppMessageIcon(size: iconSize),
+                onPressed: () => ContactLauncher.whatsappMessage(waNumber),
+              ),
+            ),
+            Expanded(
+              child: _LabeledContactAction(
+                label: l10n.t('wa_call'),
+                labelStyle: labelStyle,
+                icon: WhatsAppCallIcon(size: iconSize),
+                onPressed: () => ContactLauncher.whatsappCall(waNumber),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    if (!width.isFinite) {
+      return rail;
+    }
+
     return Align(
       alignment: AlignmentDirectional.centerEnd,
-      child: SizedBox(
-        width: 92,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-          Row(
-            children: [
-              Expanded(
-                child: _LabeledContactAction(
-                  label: l10n.t('call'),
-                  labelStyle: labelStyle,
-                  icon: IconColors.icon(
-                    Icons.phone,
-                    size: iconSize,
-                    colorIndex: 0,
-                  ),
-                  onPressed: () => ContactLauncher.call(mobileNumber),
-                ),
-              ),
-              Expanded(
-                child: _LabeledContactAction(
-                  label: l10n.t('message'),
-                  labelStyle: labelStyle,
-                  icon: IconColors.icon(
-                    Icons.sms_outlined,
-                    size: iconSize,
-                    colorIndex: 1,
-                  ),
-                  onPressed: () => ContactLauncher.sms(mobileNumber),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              Expanded(
-                child: _LabeledContactAction(
-                  label: l10n.t('wa_message'),
-                  labelStyle: labelStyle,
-                  icon: WhatsAppMessageIcon(size: iconSize),
-                  onPressed: () => ContactLauncher.whatsappMessage(waNumber),
-                ),
-              ),
-              Expanded(
-                child: _LabeledContactAction(
-                  label: l10n.t('wa_call'),
-                  labelStyle: labelStyle,
-                  icon: WhatsAppCallIcon(size: iconSize),
-                  onPressed: () => ContactLauncher.whatsappCall(waNumber),
-                ),
-              ),
-            ],
-          ),
-        ],
-        ),
-      ),
+      child: SizedBox(width: width, child: rail),
     );
   }
 }

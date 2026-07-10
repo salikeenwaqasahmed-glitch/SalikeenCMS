@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
+import 'app_text.dart';
 
 class SectionTitle extends StatelessWidget {
   const SectionTitle(this.title, {super.key, this.trailing});
@@ -15,10 +16,9 @@ class SectionTitle extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(
+            child: AppText(
               title,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: AppTextStyles.forLocale(
                 false,
                 fontSize: 18,

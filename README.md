@@ -64,13 +64,24 @@ Open **Saliks → copy icon** → pick **Keep this record** → **Merge & remove
 - Bilingual UI — English + Urdu (RTL)
 - Dark mode
 - **Offline-first** — SQLite (Drift) cache + sync queue
-- **Offline login** — CMS staff pre-seeded locally; password `cms@1234`
+- **Offline login** — CMS staff pre-seeded locally per environment (dev vs prod passwords)
 - **Auto-sync** — background sync after login; **Sync now** in Settings
 - Launcher icon from `android/app/src/main/res/` (also used in-app + web/iOS)
 
+### Environments (dev vs prod)
+
+| Build | Firebase project | Staff emails | Password |
+|-------|------------------|--------------|----------|
+| **dev** | `salikeencms` | `*dev@dev.cms.com` (see table) | `12345678` |
+| **prod** | `salikeencms-prod` | `*@cms.com` | `cms@1234` |
+
+`APP_ENV` dart-define + Android flavor must match (`dev`/`dev`, `prod`/`prod`). Default is **dev** so `flutter run` never hits prod by accident.
+
+Dev builds show **Dev App** chip on splash, login, and settings. Prod builds show **Production App**.
+
 ### Offline login (CMS staff)
 
-Nine staff accounts are defined in [`lib/core/auth/staff_users.dart`](lib/core/auth/staff_users.dart) and written to local Drift on app start via [`lib/core/auth/local_user_seed.dart`](lib/core/auth/local_user_seed.dart). Password: **`cms@1234`** ([`seed_credentials.dart`](lib/core/auth/seed_credentials.dart)).
+Staff rosters: [`staff_users_dev.dart`](lib/core/auth/staff_users_dev.dart) and [`staff_users_prod.dart`](lib/core/auth/staff_users_prod.dart), selected at compile time via [`app_config.dart`](lib/core/config/app_config.dart). Written to local Drift on app start via [`local_user_seed.dart`](lib/core/auth/local_user_seed.dart). Passwords in [`seed_credentials.dart`](lib/core/auth/seed_credentials.dart).
 
 Offline `uid` is `local-{email}` until online login binds Firebase Auth `uid` → `users/{uid}` in Firestore + local cache.
 
@@ -109,38 +120,54 @@ On first **admin** online login, `SeedService` seeds cities/areas (if needed) an
    dart run build_runner build
    ```
 
-2. **Configure Firebase**
+2. **Configure Firebase** (already generated in repo; re-run if projects change)
 
    ```bash
    dart pub global activate flutterfire_cli
-   flutterfire configure
+   flutterfire configure --project=salikeencms --out=lib/firebase_options_dev.dart --platforms=android --yes
+   flutterfire configure --project=salikeencms-prod --out=lib/firebase_options_prod.dart --platforms=android --yes
    ```
 
-3. **Enable Firebase services** in [Firebase Console](https://console.firebase.google.com/project/salikeencms):
-   - Authentication → Email/Password
-   - Firestore Database (production mode)
+3. **Enable Firebase services** in both consoles:
+   - [salikeencms (dev)](https://console.firebase.google.com/project/salikeencms) — Authentication → Email/Password, Firestore
+   - [salikeencms-prod](https://console.firebase.google.com/project/salikeencms-prod) — same
 
-4. **Deploy Firestore security rules** (required after any rules change)
+4. **Deploy Firestore security rules** to both projects
 
    ```bash
    firebase login
-   firebase use salikeencms
-   firebase deploy --only firestore:rules
+   firebase deploy --only firestore:rules --project salikeencms
+   firebase deploy --only firestore:rules --project salikeencms-prod
    ```
 
-5. **Staff accounts** — either:
-   - Log in once as `sarkar@cms.com` or `waqas@cms.com` (admin) online so `SeedService` provisions all `@cms.com` users, or
-   - Create each user manually in Auth + `users/{uid}` (see table below).
+5. **Staff accounts** — log in once as admin online so `SeedService` provisions the roster:
+   - **Dev:** `madmin@dev.cms.com` / `12345678` on `salikeencms` (provisions all dev accounts)
+   - **Prod:** `sarkar@cms.com` / `cms@1234` on `salikeencms-prod`
 
-6. **Run the app**
+6. **Run the app (dev default)**
 
    ```bash
-   flutter run
+   flutter run --flavor dev --dart-define=APP_ENV=dev
    ```
 
 ## CMS staff accounts
 
-Password for all: **`cms@1234`**. Pre-seeded offline + provisioned online by admin login.
+### Development (`salikeencms`)
+
+QA accounts per role + gender. Password for all: **`12345678`**.
+
+| Email | Role | Gender |
+|-------|------|--------|
+| meditor@dev.cms.com | `editor` | Male |
+| feditor@dev.cms.com | `editor` | Female |
+| mapprove@dev.cms.com | `approval` | Male |
+| fapprove@dev.cms.com | `approval` | Female |
+| madmin@dev.cms.com | `admin` | Male |
+| fadmin@dev.cms.com | `admin` | Female |
+
+### Production (`salikeencms-prod`)
+
+All nine CMS staff (matches Firebase Authentication roster). Password for all: **`cms@1234`**.
 
 | Email | Role | Gender |
 |-------|------|--------|
@@ -173,17 +200,25 @@ Use `approval` or `admin` for other roles. `uid` must match Firebase Authenticat
 
 Different **email** + **name** per person. Audit: `addedByUid` / `addedByName`, `approvedByUid` / `approvedByName`.
 
-## Building APK for QA
+## Building APK
+
+**Dev / QA** (`salikeencms`):
 
 ```bash
-flutter build apk --split-per-abi --release
+flutter build apk --flavor dev --dart-define=APP_ENV=dev --split-per-abi --release
 ```
 
-Send **`app-arm64-v8a-release.apk`** for most phones:
+Output: `build/app/outputs/flutter-apk/app-dev-arm64-v8a-release.apk`
 
-`build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`
+**Production** (`salikeencms-prod`):
 
-Avoid sharing debug APK via WhatsApp on Xiaomi devices.
+```bash
+flutter build apk --flavor prod --dart-define=APP_ENV=prod --split-per-abi --release
+```
+
+Output: `build/app/outputs/flutter-apk/app-prod-arm64-v8a-release.apk`
+
+Send the **arm64-v8a** APK for most phones. Avoid sharing debug APK via WhatsApp on Xiaomi devices.
 
 ## Salik document fields (reference)
 
@@ -239,7 +274,7 @@ firebase deploy --only firestore:rules
 | Wrong role after login | Sign out; check Firestore `users/{uid}.role`; clear app data if stale offline cache |
 | Editor pending missing | Rebuild app; pending matched by Firebase `uid` / `local-{email}` |
 | Duplicate mobile on save | Same mobile exists among approved saliks — use **Duplicate Data** to merge |
-| Offline login fails | Use `@cms.com` email + `cms@1234` |
+| Offline login fails | Dev: `*@dev.cms.com` + `12345678`; prod: `@cms.com` + `cms@1234` |
 | Pending sync not clearing | Settings → Sync now when online |
 | `users/{uid}` missing | Login online once; admin provisions staff; or bootstrap creates doc from local roster |
 
@@ -248,7 +283,7 @@ firebase deploy --only firestore:rules
 ```bash
 flutter analyze lib
 flutter test
-flutter run
+flutter run --flavor dev --dart-define=APP_ENV=dev
 ```
 
 After Drift schema changes:

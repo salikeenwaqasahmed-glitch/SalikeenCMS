@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/data/seed_service.dart';
 import '../../../../core/network/connectivity_service.dart';
 import '../../../../core/sync/sync_service.dart';
@@ -39,6 +40,7 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
     try {
       final session = await _repo.signIn(email, password);
       state = const AsyncData(null);
+      notifyRouterAuthChanged(_ref);
       _runPostLoginWork(session, password);
     } catch (e, st) {
       state = AsyncError(e, st);

@@ -10,6 +10,7 @@ import '../../../../core/utils/form_validators.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_scaffold.dart';
+import '../../../../core/widgets/env_badge.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -121,6 +122,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                const Align(
+                                  alignment: Alignment.center,
+                                  child: EnvBadge(),
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
                                 AppLogo(size: logoSize),
                                 const SizedBox(height: AppSpacing.md),
                                 Text(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
+import 'app_text.dart';
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -38,11 +39,7 @@ class AppScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        title: AppText(title, maxLines: 1),
         leading: showBackButton
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),

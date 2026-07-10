@@ -177,6 +177,10 @@ class AuthRepository {
           );
           firebaseUser = _auth.currentUser;
         }
+      } else if (firebaseUser != null) {
+        // Logged out locally — drop stray Firebase session.
+        await _auth.signOut();
+        firebaseUser = null;
       }
     }
 
@@ -254,13 +258,7 @@ class AuthRepository {
 
     if (offlineSession != null) {
       _offlineSessionActive = true;
-      _stickySession = offlineSession;
-      return offlineSession;
-    }
-    if (_stickySession != null &&
-        (firebaseUser != null ||
-            (await _localAuth.getRememberedEmail())?.isNotEmpty == true)) {
-      return _stickySession;
+      return _commitSession(offlineSession);
     }
     _stickySession = null;
     return null;
@@ -465,19 +463,32 @@ class AuthRepository {
         fallback;
   }
 
+  Future<bool> hasPersistedLoginIntent() async {
+    if (_offlineSessionActive) return true;
+    final remembered = await _localAuth.getRememberedEmail();
+    if (remembered != null && remembered.isNotEmpty) return true;
+    return await _localAuth.getActiveOfflineUid() != null;
+  }
+
   Future<void> signOut() async {
-    await _auth.signOut();
-    await _localAuth.clearActiveOfflineUid();
-    await _localAuth.clearRememberedLogin();
     _offlineSessionActive = false;
     _stickySession = null;
     _pinnedSession = null;
+    await _localAuth.clearActiveOfflineUid();
+    await _localAuth.clearRememberedLogin();
+    await _auth.signOut();
     _notifySessionChanged();
   }
 
   /// Offline login → internet back: Firebase Auth + Firestore profile for active user.
   Future<bool> promoteOfflineSessionIfOnline() async {
     if (!await _connectivity.isOnline) return false;
+    if (!await hasPersistedLoginIntent()) {
+      if (_auth.currentUser != null) {
+        await _auth.signOut();
+      }
+      return false;
+    }
 
     final offlineSession = await _localAuth.getActiveOfflineSession();
     if (offlineSession == null && !_offlineSessionActive) {

@@ -8,6 +8,7 @@ import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
+import '../../../../core/widgets/app_text.dart';
 import '../../../../core/widgets/section_title.dart';
 import '../../../../core/widgets/salik_widgets.dart';
 import '../../../../core/widgets/user_scope_banner.dart';
@@ -65,7 +66,13 @@ class DashboardScreen extends ConsumerWidget {
             children: [
               SizedBox(
                 height: MediaQuery.sizeOf(context).height * 0.5,
-                child: Center(child: Text(mapFirebaseError(e, l10n))),
+                child: Center(
+                  child: AppText(
+                    mapFirebaseError(e, l10n),
+                    textAlign: TextAlign.center,
+                    maxLines: 4,
+                  ),
+                ),
               ),
             ],
           ),
@@ -73,10 +80,9 @@ class DashboardScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
               if (session != null) ...[
-                Text(
+                AppText(
                   '${l10n.t('welcome')}, ${session.name}',
                   maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -155,7 +161,7 @@ class DashboardScreen extends ConsumerWidget {
                 SectionTitle(l10n.t('stats_by_city')),
                 const SizedBox(height: AppSpacing.sm),
                 SizedBox(
-                  height: 132,
+                  height: 128,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: cityCounts.length,
@@ -167,7 +173,7 @@ class DashboardScreen extends ConsumerWidget {
                       return StatCountCard(
                         expanded: false,
                         width: 132,
-                        labelMaxLines: 3,
+                        labelMaxLines: 2,
                         labelFontSize: 12,
                         label: label,
                         count: city.count,
@@ -196,12 +202,11 @@ class DashboardScreen extends ConsumerWidget {
                       count: pendingCount,
                       child: const Icon(Icons.pending_actions),
                     ),
-                    label: Text(
+                    label: AppText(
                       AccessControl.isEditor(session.role)
                           ? l10n.t('my_submissions')
                           : l10n.t('pending_approvals'),
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
@@ -211,7 +216,7 @@ class DashboardScreen extends ConsumerWidget {
                     child: OutlinedButton.icon(
                       onPressed: () => context.go('/saliks'),
                       icon: const Icon(Icons.people),
-                      label: Text(l10n.t('saliks')),
+                      label: AppText(l10n.t('saliks'), maxLines: 1),
                     ),
                   ),
                 ],

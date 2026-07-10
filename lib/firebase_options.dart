@@ -1,59 +1,48 @@
-import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-/// Generated from android/app/google-services.json (project: salikeencms).
-class DefaultFirebaseOptions {
+import 'core/config/app_config.dart';
+import 'firebase_options_dev.dart' as dev;
+import 'firebase_options_prod.dart' as prod;
+
+/// Picks Firebase options for the active [AppConfig] environment.
+class FirebaseOptionsForEnv {
+  FirebaseOptionsForEnv._();
+
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      return web;
+      return AppConfig.isProd
+          ? prod.DefaultFirebaseOptions.web
+          : dev.DefaultFirebaseOptions.web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        return android;
+        return AppConfig.isProd
+            ? prod.DefaultFirebaseOptions.android
+            : dev.DefaultFirebaseOptions.android;
       case TargetPlatform.iOS:
-        return ios;
       case TargetPlatform.macOS:
-        return macos;
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        throw UnsupportedError(
+          'Firebase options for $defaultTargetPlatform are not configured. '
+          'Use Android dev/prod flavors.',
+        );
       default:
         throw UnsupportedError(
-          'DefaultFirebaseOptions are not supported for this platform.',
+          'Firebase options are not supported for this platform.',
         );
     }
   }
 
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDwRf2LoxVtzrHDjCTm1aTJcLIH5fQgS28',
-    appId: '1:475949341237:android:6036ce344860dea8262f7c',
-    messagingSenderId: '475949341237',
-    projectId: 'salikeencms',
-    authDomain: 'salikeencms.firebaseapp.com',
-    storageBucket: 'salikeencms.firebasestorage.app',
-  );
-
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDwRf2LoxVtzrHDjCTm1aTJcLIH5fQgS28',
-    appId: '1:475949341237:android:6036ce344860dea8262f7c',
-    messagingSenderId: '475949341237',
-    projectId: 'salikeencms',
-    storageBucket: 'salikeencms.firebasestorage.app',
-  );
-
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDwRf2LoxVtzrHDjCTm1aTJcLIH5fQgS28',
-    appId: '1:475949341237:android:6036ce344860dea8262f7c',
-    messagingSenderId: '475949341237',
-    projectId: 'salikeencms',
-    storageBucket: 'salikeencms.firebasestorage.app',
-    iosBundleId: 'com.example.salikManagementSystem',
-  );
-
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDwRf2LoxVtzrHDjCTm1aTJcLIH5fQgS28',
-    appId: '1:475949341237:android:6036ce344860dea8262f7c',
-    messagingSenderId: '475949341237',
-    projectId: 'salikeencms',
-    storageBucket: 'salikeencms.firebasestorage.app',
-    iosBundleId: 'com.example.salikManagementSystem',
-  );
+  /// Android auto-inits from `google-services.json`; skip duplicate init.
+  static Future<void> ensureInitialized() async {
+    if (Firebase.apps.isNotEmpty) return;
+    try {
+      await Firebase.initializeApp(options: currentPlatform);
+    } on FirebaseException catch (e) {
+      if (e.code != 'duplicate-app' && Firebase.apps.isEmpty) rethrow;
+    }
+  }
 }

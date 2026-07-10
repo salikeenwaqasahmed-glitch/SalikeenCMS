@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/data/reference_data.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/widgets/app_text.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../saliks/domain/entities/area.dart';
@@ -35,11 +36,11 @@ class FilterBar extends ConsumerWidget {
               label: l10n.t('city'),
               value: filter.cityId,
               items: [
-                DropdownMenuItem(value: 'all', child: Text(l10n.t('all'))),
+                DropdownMenuItem(value: 'all', child: AppText.dropdownItem(l10n.t('all'))),
                 ...cities.map(
                   (c) => DropdownMenuItem(
                     value: c.cityId,
-                    child: Text(c.cityName),
+                    child: AppText.dropdownItem(c.cityName),
                   ),
                 ),
               ],
@@ -50,11 +51,11 @@ class FilterBar extends ConsumerWidget {
               label: l10n.t('area'),
               value: filter.areaId,
               items: [
-                DropdownMenuItem(value: 'all', child: Text(l10n.t('all'))),
+                DropdownMenuItem(value: 'all', child: AppText.dropdownItem(l10n.t('all'))),
                 ...areas.map(
                   (a) => DropdownMenuItem(
                     value: a.areaId,
-                    child: Text(a.areaName),
+                    child: AppText.dropdownItem(a.areaName),
                   ),
                 ),
               ],
@@ -67,14 +68,14 @@ class FilterBar extends ConsumerWidget {
                 label: l10n.t('gender'),
                 value: filter.genderId,
                 items: [
-                  DropdownMenuItem(value: 'all', child: Text(l10n.t('all'))),
+                  DropdownMenuItem(value: 'all', child: AppText.dropdownItem(l10n.t('all'))),
                   DropdownMenuItem(
                     value: 'Male',
-                    child: Text(l10n.t('male')),
+                    child: AppText.dropdownItem(l10n.t('male')),
                   ),
                   DropdownMenuItem(
                     value: 'Female',
-                    child: Text(l10n.t('female')),
+                    child: AppText.dropdownItem(l10n.t('female')),
                   ),
                 ],
                 onChanged: notifier.setGender,
@@ -85,14 +86,14 @@ class FilterBar extends ConsumerWidget {
               label: l10n.t('active'),
               value: filter.status,
               items: [
-                DropdownMenuItem(value: 'all', child: Text(l10n.t('all'))),
+                DropdownMenuItem(value: 'all', child: AppText.dropdownItem(l10n.t('all'))),
                 DropdownMenuItem(
                   value: 'active',
-                  child: Text(l10n.t('active')),
+                  child: AppText.dropdownItem(l10n.t('active')),
                 ),
                 DropdownMenuItem(
                   value: 'inactive',
-                  child: Text(l10n.t('inactive')),
+                  child: AppText.dropdownItem(l10n.t('inactive')),
                 ),
               ],
               onChanged: notifier.setStatus,
@@ -122,8 +123,9 @@ class _FilterDropdown extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
+        AppText(
           label,
+          maxLines: 1,
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 13,
@@ -168,45 +170,41 @@ class FilterChips extends ConsumerWidget {
     final chips = <Widget>[
       if (filter.cityId != 'all')
         Chip(
-          label: Text(
+          label: AppText(
             _cityChipLabel(
               cityId: filter.cityId,
               cities: cities,
             ),
             maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           onDeleted: () => notifier.setCity('all'),
         ),
       if (filter.areaId != 'all')
         Chip(
-          label: Text(
+          label: AppText(
             _areaChipLabel(
               filter: filter,
               areas: areas,
             ),
             maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           onDeleted: () => notifier.setArea('all'),
         ),
       if (filter.genderId != 'all')
         Chip(
-          label: Text(
+          label: AppText(
             filter.genderId == 'Male' ? l10n.t('male') : l10n.t('female'),
             maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           onDeleted: () => notifier.setGender('all'),
         ),
       if (filter.status != 'all')
         Chip(
-          label: Text(
+          label: AppText(
             filter.status == 'active'
                 ? l10n.t('active')
                 : l10n.t('inactive'),
             maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           onDeleted: () => notifier.setStatus('all'),
         ),

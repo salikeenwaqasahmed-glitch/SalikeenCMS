@@ -10,6 +10,7 @@ import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
+import '../../../../core/widgets/app_text.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/salik_widgets.dart';
 import '../../../auth/domain/user_session.dart';
@@ -223,19 +224,22 @@ class _DuplicateGroupCardState extends ConsumerState<_DuplicateGroupCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
+            AppText(
               reasons,
+              maxLines: 2,
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: AppSpacing.xs),
-            Text(
+            AppText(
               widget.group.label,
+              maxLines: 2,
               style: TextStyle(color: Colors.grey.shade700),
             ),
-            Text(
+            AppText(
               l10n
                   .t('duplicate_group_count')
                   .replaceAll('{count}', '${widget.group.saliks.length}'),
+              maxLines: 1,
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -253,11 +257,10 @@ class _DuplicateGroupCardState extends ConsumerState<_DuplicateGroupCard> {
                             if (value == null) return;
                             setState(() => _keepId = value);
                           },
-                    title: Text(l10n.t('keep_this_record')),
-                    subtitle: Text(
+                    title: AppText(l10n.t('keep_this_record'), maxLines: 1),
+                    subtitle: AppText(
                       salik.name.trim(),
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       textDirection: textDirectionFor(salik.name),
                     ),
                     contentPadding: EdgeInsets.zero,
@@ -292,7 +295,7 @@ class _DuplicateGroupCardState extends ConsumerState<_DuplicateGroupCard> {
               onPressed: widget.group.saliks.length < 2 || _busy
                   ? null
                   : _mergeGroup,
-              child: Text(l10n.t('merge_duplicates')),
+              child: AppText(l10n.t('merge_duplicates'), maxLines: 1),
             ),
           ],
         ),

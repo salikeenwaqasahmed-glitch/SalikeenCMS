@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "833070717357",
+    "project_id": "salikeencms-prod",
+    "storage_bucket": "salikeencms-prod.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:833070717357:android:fa75ea082dd08c17aea924",
+        "android_client_info": {
+          "package_name": "com.example.salik_management_system"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCMXIrLL6wWxPDa7wrAHaBS-z3QDaADEwk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

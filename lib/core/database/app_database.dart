@@ -5,6 +5,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../config/app_config.dart';
 import '../utils/text_field_merge.dart';
 import '../../features/saliks/domain/entities/approval_status.dart';
 import '../../features/saliks/domain/entities/area.dart';
@@ -207,7 +208,7 @@ class AppDatabase extends _$AppDatabase {
 
   static QueryExecutor _openConnection() {
     return driftDatabase(
-      name: 'salik_crm_local',
+      name: AppConfig.driftDbName,
       web: kIsWeb
           ? DriftWebOptions(
               sqlite3Wasm: Uri.parse('sqlite3.wasm'),

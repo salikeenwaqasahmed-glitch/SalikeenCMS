@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/icon_colors.dart';
+import '../../../../core/widgets/app_text.dart';
 
 class StatCountCard extends StatelessWidget {
   const StatCountCard({
@@ -35,45 +37,88 @@ class StatCountCard extends StatelessWidget {
     return IconColors.forIcon(icon);
   }
 
+  static const TextHeightBehavior _tightLabelHeight = TextHeightBehavior(
+    applyHeightToFirstAscent: false,
+    applyHeightToLastDescent: false,
+  );
+
+  TextStyle _labelStyle({required bool compact}) {
+    return TextStyle(
+      fontSize: labelFontSize,
+      height: compact ? 1.12 : 1.15,
+      color: Colors.grey.shade600,
+      fontWeight: compact ? FontWeight.w500 : FontWeight.w600,
+    );
+  }
+
+  Widget _buildLabel({required bool compact}) {
+    final lines = kIsWeb ? labelMaxLines.clamp(1, 2) : labelMaxLines;
+    final style = _labelStyle(compact: compact);
+
+    if (kIsWeb) {
+      return Text(
+        label,
+        textAlign: TextAlign.center,
+        maxLines: lines,
+        overflow: TextOverflow.clip,
+        style: style,
+        textHeightBehavior: _tightLabelHeight,
+      );
+    }
+
+    return AppText(
+      label,
+      textAlign: TextAlign.center,
+      maxLines: lines,
+      style: style,
+      textHeightBehavior: _tightLabelHeight,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final iconColor = _iconColor;
+    final compact = !expanded;
+    final vPad = compact ? AppSpacing.sm : AppSpacing.md;
+    final iconSize = compact ? 20.0 : 22.0;
+    final countSize = compact ? 20.0 : 22.0;
+
     final card = Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(
+          padding: EdgeInsets.symmetric(
             horizontal: AppSpacing.sm,
-            vertical: AppSpacing.md,
+            vertical: vPad,
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
             children: [
-              Icon(icon, color: iconColor, size: 22),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
+              Icon(icon, color: iconColor, size: iconSize),
+              SizedBox(height: compact ? 2 : AppSpacing.xs),
+              AppFitText(
                 '$count',
                 style: AppTextStyles.forLocale(
                   false,
-                  fontSize: 22,
+                  fontSize: countSize,
                   fontWeight: FontWeight.w800,
                   color: iconColor,
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: labelFontSize,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w600,
-                  height: 1.2,
+              if (compact)
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: _buildLabel(compact: true),
+                  ),
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: _buildLabel(compact: false),
                 ),
-                maxLines: labelMaxLines,
-                overflow: TextOverflow.ellipsis,
-              ),
             ],
           ),
         ),
@@ -81,6 +126,6 @@ class StatCountCard extends StatelessWidget {
     );
 
     if (expanded) return Expanded(child: card);
-    return SizedBox(width: width, child: card);
+    return SizedBox(width: width, height: double.infinity, child: card);
   }
 }

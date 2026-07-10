@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_text.dart';
 
 class SegmentPillBar extends StatelessWidget {
   const SegmentPillBar({
@@ -43,10 +44,9 @@ class SegmentPillBar extends StatelessWidget {
                     horizontal: AppSpacing.md,
                     vertical: AppSpacing.sm,
                   ),
-                  child:                   Text(
+                  child: AppText(
                     labels[i],
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight:

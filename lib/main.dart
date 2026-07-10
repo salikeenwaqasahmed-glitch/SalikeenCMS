@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'core/auth/local_auth_store.dart';
 import 'core/auth/local_user_seed.dart';
 import 'core/data/local_data_seed.dart';
@@ -23,19 +23,13 @@ import 'firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } catch (e) {
-    debugPrint('Firebase init failed: $e');
-  }
+  await FirebaseOptionsForEnv.ensureInitialized();
 
   final bootstrapContainer = ProviderContainer();
   final authStore = bootstrapContainer.read(localAuthStoreProvider);
   final database = bootstrapContainer.read(appDatabaseProvider);
   await LocalUserSeed.ensureUsers(authStore);
-    await LocalDataSeed.ensureReferenceData(database);
+  await LocalDataSeed.ensureReferenceData(database);
   debugPrint('Local seed done: users + reference data ready for offline use');
 
   runApp(
@@ -72,25 +66,69 @@ class SalikManagementApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (context, child) {
-        final signingIn = ref.watch(authControllerProvider).isLoading;
-        final auth = ref.watch(authStateProvider);
-        final bootstrapping = auth.isLoading;
-        return Directionality(
-          textDirection: TextDirection.ltr,
-          child: Stack(
-            children: [
-              if (child != null) child,
-              if (bootstrapping || signingIn)
-                const ColoredBox(
-                  color: AppTheme.primaryColor,
-                  child: AppLoadingPage(color: Colors.white),
-                ),
-            ],
-          ),
-        );
-      },
+      builder: (context, child) => AuthLoadingGate(child: child),
       routerConfig: router,
+    );
+  }
+}
+
+/// Full-screen loader during bootstrap, sign-in, and post-login redirect.
+class AuthLoadingGate extends ConsumerStatefulWidget {
+  const AuthLoadingGate({super.key, this.child});
+
+  final Widget? child;
+
+  @override
+  ConsumerState<AuthLoadingGate> createState() => _AuthLoadingGateState();
+}
+
+class _AuthLoadingGateState extends ConsumerState<AuthLoadingGate> {
+  late final GoRouter _router;
+  String _location = '/login';
+
+  @override
+  void initState() {
+    super.initState();
+    _router = ref.read(appRouterProvider);
+    _location = routerMatchedLocation(_router);
+    _router.routerDelegate.addListener(_onRouteChanged);
+  }
+
+  void _onRouteChanged() {
+    if (!mounted) return;
+    final next = routerMatchedLocation(_router);
+    if (next == _location) return;
+    setState(() => _location = next);
+  }
+
+  @override
+  void dispose() {
+    _router.routerDelegate.removeListener(_onRouteChanged);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final signingIn = ref.watch(authControllerProvider).isLoading;
+    final auth = ref.watch(authStateProvider);
+    final bootstrapping = auth.isLoading;
+    final session = auth.valueOrNull;
+    final onLogin = _location == '/login';
+    final pendingDashboard = !bootstrapping && session != null && onLogin;
+    final showGate = bootstrapping || signingIn || pendingDashboard;
+
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Stack(
+        children: [
+          if (widget.child != null) widget.child!,
+          if (showGate)
+            const ColoredBox(
+              color: AppTheme.primaryColor,
+              child: AppLoadingPage(color: Colors.white),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -100,7 +138,9 @@ final appDatabaseHydrationProvider = Provider<void>((ref) {
     if (!await ref.read(connectivityServiceProvider).isOnline) return;
 
     final authRepo = ref.read(authRepositoryProvider);
-    await authRepo.promoteOfflineSessionIfOnline();
+    if (await authRepo.hasPersistedLoginIntent()) {
+      await authRepo.promoteOfflineSessionIfOnline();
+    }
 
     final active = session ?? ref.read(authStateProvider).valueOrNull;
     if (active == null) return;

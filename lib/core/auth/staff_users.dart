@@ -1,81 +1,17 @@
-import '../../features/auth/domain/user_role.dart';
 import '../../features/auth/domain/user_session.dart';
+import '../config/app_config.dart';
 import 'local_auth_store.dart';
+import 'staff_user.dart';
+import 'staff_users_dev.dart';
+import 'staff_users_prod.dart';
 
-/// Canonical CMS staff roster — offline seed, Firebase provision, profile repair.
-class StaffUser {
-  const StaffUser({
-    required this.email,
-    required this.name,
-    required this.role,
-    required this.gender,
-  });
+export 'staff_user.dart';
 
-  final String email;
-  final String name;
-  final UserRole role;
-  final String gender;
-}
+List<StaffUser> get kStaffUsers =>
+    AppConfig.isProd ? kStaffUsersProd : kStaffUsersDev;
 
-const kStaffUsers = <StaffUser>[
-  StaffUser(
-    email: 'naveed@cms.com',
-    name: 'Naveed',
-    role: UserRole.editor,
-    gender: 'Male',
-  ),
-  StaffUser(
-    email: 'ayaz@cms.com',
-    name: 'Ayaz',
-    role: UserRole.editor,
-    gender: 'Male',
-  ),
-  StaffUser(
-    email: 'mawaz@cms.com',
-    name: 'Mawaz',
-    role: UserRole.editor,
-    gender: 'Male',
-  ),
-  StaffUser(
-    email: 'imran@cms.com',
-    name: 'Imran',
-    role: UserRole.editor,
-    gender: 'Male',
-  ),
-  StaffUser(
-    email: 'adil@cms.com',
-    name: 'Adil',
-    role: UserRole.approval,
-    gender: 'Male',
-  ),
-  StaffUser(
-    email: 'waheed@cms.com',
-    name: 'Waheed',
-    role: UserRole.approval,
-    gender: 'Male',
-  ),
-  StaffUser(
-    email: 'usman@cms.com',
-    name: 'Usman',
-    role: UserRole.approval,
-    gender: 'Male',
-  ),
-  StaffUser(
-    email: 'sarkar@cms.com',
-    name: 'Sarkar',
-    role: UserRole.admin,
-    gender: 'Male',
-  ),
-  StaffUser(
-    email: 'waqas@cms.com',
-    name: 'Waqas',
-    role: UserRole.admin,
-    gender: 'Male',
-  ),
-];
-
-/// Bootstrap admin used when provisioning other Firebase Auth accounts.
-const kBootstrapAdminEmail = 'sarkar@cms.com';
+String get kBootstrapAdminEmail =>
+    AppConfig.isProd ? kBootstrapAdminEmailProd : kBootstrapAdminEmailDev;
 
 String nameFromEmail(String email) {
   final local = LocalAuthStore.normalizeEmail(email).split('@').first;

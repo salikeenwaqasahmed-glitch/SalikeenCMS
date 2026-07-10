@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 abstract final class AppTextStyles {
@@ -9,8 +10,8 @@ abstract final class AppTextStyles {
     Color? color,
   }) {
     return TextStyle(
-      fontFamily: _interFamily,
-      fontFamilyFallback: const ['sans-serif'],
+      fontFamily: kIsWeb ? null : _interFamily,
+      fontFamilyFallback: kIsWeb ? null : const ['sans-serif'],
       fontSize: fontSize,
       fontWeight: fontWeight,
       color: color,
@@ -27,7 +28,7 @@ abstract final class AppTextStyles {
       fontSize: fontSize ?? 16,
       fontWeight: fontWeight,
       color: color,
-      height: 1.6,
+      height: kIsWeb ? null : 1.6,
     );
   }
 

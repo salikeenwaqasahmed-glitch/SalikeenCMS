@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "salikeencms",
+    "dev": "salikeencms",
+    "prod": "salikeencms-prod"
+  }
+}

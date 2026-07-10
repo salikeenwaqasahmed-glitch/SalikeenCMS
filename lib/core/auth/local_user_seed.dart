@@ -8,8 +8,6 @@ import 'staff_users.dart';
 class LocalUserSeed {
   LocalUserSeed._();
 
-  static const defaultPassword = SeedCredentials.defaultPassword;
-
   static Future<void> ensureUsers(LocalAuthStore store) async {
     for (final user in kStaffUsers) {
       final email = LocalAuthStore.normalizeEmail(user.email);
@@ -21,7 +19,7 @@ class LocalUserSeed {
           role: user.role,
           gender: user.gender,
         ),
-        password: defaultPassword,
+        password: SeedCredentials.defaultPassword,
         refreshPassword: true,
       );
     }

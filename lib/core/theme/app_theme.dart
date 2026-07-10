@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'app_spacing.dart';
 import 'app_text_styles.dart';
@@ -28,10 +29,12 @@ class AppTheme {
       ),
       scaffoldBackgroundColor:
           isDark ? const Color(0xFF0E1210) : scaffoldLightBg,
-      textTheme: ThemeData(brightness: brightness).textTheme.apply(
-            fontFamily: 'Roboto',
-            fontFamilyFallback: const ['sans-serif'],
-          ),
+      textTheme: (kIsWeb
+              ? ThemeData(brightness: brightness).textTheme
+              : ThemeData(brightness: brightness).textTheme.apply(
+                  fontFamily: 'Roboto',
+                  fontFamilyFallback: const ['sans-serif'],
+                )),
     );
 
     return base.copyWith(

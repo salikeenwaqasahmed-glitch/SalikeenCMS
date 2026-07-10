@@ -4,6 +4,7 @@ import '../../../../core/data/reference_data.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_loader.dart';
+import '../../../../core/widgets/app_text.dart';
 import '../../../dashboard/presentation/widgets/segment_pill_bar.dart';
 import '../../domain/entities/area.dart';
 import '../../domain/entities/city.dart';
@@ -44,7 +45,7 @@ class SalikBrowseSegmentBar extends ConsumerWidget {
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: FilterChip(
-              label: Text(l10n.t('inactive')),
+              label: AppText(l10n.t('inactive'), maxLines: 1),
               selected: filter.status == 'inactive',
               onSelected: (selected) {
                 notifier.setStatus(selected ? 'inactive' : 'all');
