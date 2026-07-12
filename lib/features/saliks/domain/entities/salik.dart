@@ -10,6 +10,7 @@ class Salik {
     required this.whatsappNumber,
     required this.cityId,
     required this.areaId,
+    this.address = '',
     required this.genderId,
     required this.bazamId,
     required this.khanqahId,
@@ -40,6 +41,7 @@ class Salik {
   final String whatsappNumber;
   final String cityId;
   final String areaId;
+  final String address;
   final String genderId;
   final String bazamId;
   final String khanqahId;
@@ -74,6 +76,7 @@ class Salik {
     String? whatsappNumber,
     String? cityId,
     String? areaId,
+    String? address,
     String? genderId,
     String? bazamId,
     String? khanqahId,
@@ -104,6 +107,7 @@ class Salik {
       whatsappNumber: whatsappNumber ?? this.whatsappNumber,
       cityId: cityId ?? this.cityId,
       areaId: areaId ?? this.areaId,
+      address: address ?? this.address,
       genderId: genderId ?? this.genderId,
       bazamId: bazamId ?? this.bazamId,
       khanqahId: khanqahId ?? this.khanqahId,
@@ -147,6 +151,7 @@ class Salik {
       whatsappNumber: map['whatsappNumber'] as String? ?? '',
       cityId: map['cityId'] as String? ?? '',
       areaId: map['areaId'] as String? ?? '',
+      address: map['address'] as String? ?? '',
       genderId: map['genderId'] as String? ?? 'Male',
       bazamId: map['bazamId'] as String? ?? '',
       khanqahId: map['khanqahId'] as String? ?? '',
@@ -181,6 +186,7 @@ class Salik {
         'whatsappNumber': whatsappNumber,
         'cityId': cityId,
         'areaId': areaId,
+        'address': address,
         'genderId': genderId,
         'bazamId': bazamId,
         'khanqahId': khanqahId,

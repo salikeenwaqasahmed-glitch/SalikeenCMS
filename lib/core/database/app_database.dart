@@ -42,6 +42,7 @@ class LocalSaliks extends Table {
   TextColumn get whatsappNumber => text()();
   TextColumn get cityId => text()();
   TextColumn get areaId => text()();
+  TextColumn get address => text().withDefault(const Constant(''))();
   TextColumn get genderId => text()();
   TextColumn get bazamId => text().withDefault(const Constant(''))();
   TextColumn get khanqahId => text().withDefault(const Constant(''))();
@@ -115,7 +116,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -202,6 +203,9 @@ class AppDatabase extends _$AppDatabase {
               );
             }
             await migrator.dropColumn(localAreas, 'area_name_urdu');
+          }
+          if (from < 5) {
+            await migrator.addColumn(localSaliks, localSaliks.address);
           }
         },
       );
@@ -419,6 +423,7 @@ extension LocalSalikMapper on LocalSalik {
       whatsappNumber: whatsappNumber,
       cityId: cityId,
       areaId: areaId,
+      address: address,
       genderId: genderId,
       bazamId: bazamId,
       khanqahId: khanqahId,
@@ -453,6 +458,7 @@ LocalSaliksCompanion salikToCompanion(Salik salik, {required String syncStatus})
     whatsappNumber: Value(salik.whatsappNumber),
     cityId: Value(salik.cityId),
     areaId: Value(salik.areaId),
+    address: Value(salik.address),
     genderId: Value(salik.genderId),
     bazamId: Value(salik.bazamId),
     khanqahId: Value(salik.khanqahId),

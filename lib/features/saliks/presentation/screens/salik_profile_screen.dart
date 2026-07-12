@@ -89,6 +89,9 @@ class _SalikProfileScreenState extends ConsumerState<SalikProfileScreen> {
                   salik.areaId,
                   ref.watch(areasByCityProvider(salik.cityId)).valueOrNull ?? [],
                 );
+            final displayAddress = salik.address.trim().isNotEmpty
+                ? salik.address
+                : (area?.areaName ?? '');
             final samePhone =
                 phonesMatch(salik.mobileNumber, salik.whatsappNumber);
 
@@ -178,7 +181,7 @@ class _SalikProfileScreenState extends ConsumerState<SalikProfileScreen> {
                           title: l10n.t('contact_info'),
                           children: [
                             InfoRow(
-                              icon: Icons.phone,
+                              icon: Icons.phone_in_talk,
                               label: l10n.t('mobile'),
                               value: salik.mobileNumber,
                               colorIndex: 0,
@@ -212,8 +215,8 @@ class _SalikProfileScreenState extends ConsumerState<SalikProfileScreen> {
                             ),
                             InfoRow(
                               icon: Icons.map,
-                              label: l10n.t('area'),
-                              value: area?.areaName ?? '',
+                              label: l10n.t('address'),
+                              value: displayAddress,
                               colorIndex: 1,
                             ),
                           ],

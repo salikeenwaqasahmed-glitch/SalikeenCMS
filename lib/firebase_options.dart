@@ -16,31 +16,25 @@ class FirebaseOptionsForEnv {
           ? prod.DefaultFirebaseOptions.web
           : dev.DefaultFirebaseOptions.web;
     }
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return AppConfig.isProd
-            ? prod.DefaultFirebaseOptions.android
-            : dev.DefaultFirebaseOptions.android;
-      case TargetPlatform.iOS:
-      case TargetPlatform.macOS:
-      case TargetPlatform.windows:
-      case TargetPlatform.linux:
-        throw UnsupportedError(
-          'Firebase options for $defaultTargetPlatform are not configured. '
-          'Use Android dev/prod flavors.',
-        );
-      default:
-        throw UnsupportedError(
-          'Firebase options are not supported for this platform.',
-        );
-    }
+    throw UnsupportedError(
+      'Use native Firebase config on mobile (google-services.json). '
+      'Call FirebaseOptionsForEnv.ensureInitialized() instead.',
+    );
   }
 
-  /// Android auto-inits from `google-services.json`; skip duplicate init.
+  /// Android reads flavor `google-services.json`; web uses Dart options.
   static Future<void> ensureInitialized() async {
     if (Firebase.apps.isNotEmpty) return;
     try {
-      await Firebase.initializeApp(options: currentPlatform);
+      if (kIsWeb) {
+        await Firebase.initializeApp(options: currentPlatform);
+      } else if (defaultTargetPlatform == TargetPlatform.android) {
+        await Firebase.initializeApp();
+      } else {
+        throw UnsupportedError(
+          'Firebase is only configured for Android flavors and web.',
+        );
+      }
     } on FirebaseException catch (e) {
       if (e.code != 'duplicate-app' && Firebase.apps.isEmpty) rethrow;
     }

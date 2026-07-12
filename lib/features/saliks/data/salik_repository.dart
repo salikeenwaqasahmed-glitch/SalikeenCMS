@@ -184,17 +184,38 @@ class SalikRepository {
 
   Future<Salik?> resolveSalik(String id) async {
     final row = await _db.getSalikById(id);
-    if (row != null) return row.toSalik();
-    return _fetchRemoteSalik(id);
+    final local = row?.toSalik();
+    final hasPendingLocal = row != null && row.syncStatus != synced;
+
+    if (await _connectivity.isOnline &&
+        FirebaseAuth.instance.currentUser != null) {
+      final remote = await _fetchRemoteSalik(id, cache: !hasPendingLocal);
+      if (remote != null) {
+        return hasPendingLocal ? local : remote;
+      }
+    }
+
+    return local;
   }
 
   Future<({Salik salik, String syncStatus})?> resolveSalikWithStatus(
     String id,
   ) async {
     final row = await _db.getSalikById(id);
+    final hasPendingLocal = row != null && row.syncStatus != synced;
+
+    if (await _connectivity.isOnline &&
+        FirebaseAuth.instance.currentUser != null) {
+      final remote = await _fetchRemoteSalik(id, cache: !hasPendingLocal);
+      if (remote != null && !hasPendingLocal) {
+        return (salik: remote, syncStatus: synced);
+      }
+    }
+
     if (row != null) {
       return (salik: row.toSalik(), syncStatus: row.syncStatus);
     }
+
     final remote = await _fetchRemoteSalik(id);
     if (remote == null) return null;
     return (salik: remote, syncStatus: synced);
@@ -228,13 +249,17 @@ class SalikRepository {
         .toList();
   }
 
-  Future<Salik?> _fetchRemoteSalik(String id) async {
+  Future<Salik?> _fetchRemoteSalik(String id, {bool cache = true}) async {
     if (!await _connectivity.isOnline) return null;
     if (FirebaseAuth.instance.currentUser == null) return null;
     try {
       final snap = await _firestore.collection('saliks').doc(id).get();
       if (!snap.exists) return null;
-      return Salik.fromMap(snap.data()!, id: id);
+      final salik = Salik.fromMap(snap.data()!, id: id);
+      if (cache) {
+        await _db.upsertSalik(salikToCompanion(salik, syncStatus: synced));
+      }
+      return salik;
     } catch (_) {
       return null;
     }

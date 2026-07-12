@@ -130,6 +130,7 @@ Salik mergeSalikRecords(Salik keep, Salik other) {
     whatsappNumber: pick(keep.whatsappNumber, other.whatsappNumber),
     cityId: pick(keep.cityId, other.cityId),
     areaId: pick(keep.areaId, other.areaId),
+    address: pick(keep.address, other.address),
     bazamId: pick(keep.bazamId, other.bazamId),
     khanqahId: pick(keep.khanqahId, other.khanqahId),
     salikCategoryId: pick(keep.salikCategoryId, other.salikCategoryId),

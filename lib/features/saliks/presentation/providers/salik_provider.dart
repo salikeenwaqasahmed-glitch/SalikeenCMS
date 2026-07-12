@@ -58,8 +58,21 @@ final pendingCountProvider = Provider<int>((ref) {
 
 final salikByIdProvider =
     FutureProvider.family<Salik?, String>((ref, id) async {
-  final repo = ref.watch(salikRepositoryProvider);
-  return repo.getSalik(id);
+  ref.watch(saliksStreamProvider);
+  ref.watch(pendingSaliksStreamProvider);
+
+  for (final list in [
+    ref.read(saliksStreamProvider).valueOrNull,
+    ref.read(pendingSaliksStreamProvider).valueOrNull,
+  ]) {
+    if (list == null) continue;
+    for (final salik in list) {
+      if (salik.salikId == id) return salik;
+    }
+  }
+
+  final repo = ref.read(salikRepositoryProvider);
+  return repo.resolveSalik(id);
 });
 
 final salikAddedByNameProvider =
@@ -74,7 +87,6 @@ class SalikFilter {
   const SalikFilter({
     this.search = '',
     this.cityId = 'all',
-    this.areaId = 'all',
     this.genderId = 'all',
     this.status = 'all',
     this.segment = SalikBrowseSegment.all,
@@ -82,7 +94,6 @@ class SalikFilter {
 
   final String search;
   final String cityId;
-  final String areaId;
   final String genderId;
   final String status;
   final SalikBrowseSegment segment;
@@ -90,7 +101,6 @@ class SalikFilter {
   SalikFilter copyWith({
     String? search,
     String? cityId,
-    String? areaId,
     String? genderId,
     String? status,
     SalikBrowseSegment? segment,
@@ -98,7 +108,6 @@ class SalikFilter {
     return SalikFilter(
       search: search ?? this.search,
       cityId: cityId ?? this.cityId,
-      areaId: areaId ?? this.areaId,
       genderId: genderId ?? this.genderId,
       status: status ?? this.status,
       segment: segment ?? this.segment,
@@ -116,10 +125,7 @@ class SalikFilterNotifier extends StateNotifier<SalikFilter> {
 
   void setSearch(String value) => state = state.copyWith(search: value);
 
-  void setCity(String cityId) =>
-      state = state.copyWith(cityId: cityId, areaId: 'all');
-
-  void setArea(String areaId) => state = state.copyWith(areaId: areaId);
+  void setCity(String cityId) => state = state.copyWith(cityId: cityId);
 
   void setGender(String genderId) => state = state.copyWith(genderId: genderId);
 
@@ -129,7 +135,6 @@ class SalikFilterNotifier extends StateNotifier<SalikFilter> {
     state = state.copyWith(
       segment: segment,
       cityId: segment == SalikBrowseSegment.area ? state.cityId : 'all',
-      areaId: segment == SalikBrowseSegment.area ? state.areaId : 'all',
     );
   }
 
@@ -143,10 +148,10 @@ List<Salik> applySalikFilters(List<Salik> saliks, SalikFilter filter) {
         s.name.toLowerCase().contains(q) ||
         s.fatherName.toLowerCase().contains(q) ||
         s.mobileNumber.contains(filter.search) ||
-        s.referenceName.toLowerCase().contains(q);
+        s.referenceName.toLowerCase().contains(q) ||
+        s.address.toLowerCase().contains(q);
 
     final matchesCity = filter.cityId == 'all' || s.cityId == filter.cityId;
-    final matchesArea = filter.areaId == 'all' || s.areaId == filter.areaId;
     final matchesGender =
         filter.genderId == 'all' || s.genderId == filter.genderId;
 
@@ -163,7 +168,6 @@ List<Salik> applySalikFilters(List<Salik> saliks, SalikFilter filter) {
 
     return matchesSearch &&
         matchesCity &&
-        matchesArea &&
         matchesGender &&
         matchesStatus &&
         matchesSegment;

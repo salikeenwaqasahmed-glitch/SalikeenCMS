@@ -43,7 +43,8 @@ void main() {
         mobileNumber: '0300-1111111',
         whatsappNumber: '0300-1111111',
         cityId: 'c1',
-        areaId: 'a1',
+        areaId: '',
+        address: 'Test address',
         genderId: 'Male',
         bazamId: '',
         khanqahId: '',
@@ -65,6 +66,7 @@ void main() {
       final restored = Salik.fromMap(salik.toMap(), id: salik.salikId);
       expect(restored.approvalStatus, ApprovalStatus.pending);
       expect(restored.addedByUid, 'editor-uid');
+      expect(restored.address, 'Test address');
       expect(restored.isActive, isFalse);
     });
 
@@ -79,7 +81,8 @@ void main() {
         mobileNumber: '0300-2222222',
         whatsappNumber: '0300-2222222',
         cityId: 'c1',
-        areaId: 'a1',
+        areaId: '',
+        address: 'Test address',
         genderId: 'Male',
         bazamId: '',
         khanqahId: '',
@@ -139,7 +142,8 @@ void main() {
         mobileNumber: '0300-3333333',
         whatsappNumber: '0300-3333333',
         cityId: 'c1',
-        areaId: 'a1',
+        areaId: '',
+        address: 'Test address',
         genderId: 'Female',
         bazamId: '',
         khanqahId: '',
@@ -176,7 +180,8 @@ void main() {
         mobileNumber: '03001111111',
         whatsappNumber: '03001111111',
         cityId: 'c1',
-        areaId: 'a1',
+        areaId: '',
+        address: 'Test address',
         genderId: 'Female',
         bazamId: '',
         khanqahId: '',
@@ -203,6 +208,21 @@ void main() {
 
       expect(merged.single.name, 'Remote');
     });
+    test('applySalikFilters matches address in search', () {
+      final saliks = [
+        _sampleSalik(id: 's1', genderId: 'Male')
+            .copyWith(address: 'Gulshan Block 5'),
+        _sampleSalik(id: 's2', genderId: 'Male')
+            .copyWith(address: 'Model Town'),
+      ];
+
+      final filtered = applySalikFilters(
+        saliks,
+        const SalikFilter(search: 'gulshan'),
+      );
+
+      expect(filtered.map((s) => s.salikId), ['s1']);
+    });
   });
 }
 
@@ -214,7 +234,8 @@ Salik _sampleSalik({required String id, required String genderId}) {
     mobileNumber: '0300$id',
     whatsappNumber: '0300$id',
     cityId: 'c1',
-    areaId: 'a1',
+    areaId: '',
+    address: 'Sample address',
     genderId: genderId,
     bazamId: '',
     khanqahId: '',

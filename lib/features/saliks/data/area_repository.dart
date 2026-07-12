@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -13,15 +14,22 @@ final areaRepositoryProvider = Provider<AreaRepository>((ref) {
     ref.watch(appDatabaseProvider),
     ref.watch(connectivityServiceProvider),
     ref.watch(syncServiceProvider),
+    FirebaseFirestore.instance,
   );
 });
 
 class AreaRepository {
-  AreaRepository(this._db, this._connectivity, this._sync);
+  AreaRepository(
+    this._db,
+    this._connectivity,
+    this._sync,
+    this._firestore,
+  );
 
   final AppDatabase _db;
   final ConnectivityService _connectivity;
   final SyncService _sync;
+  final FirebaseFirestore _firestore;
   final _uuid = const Uuid();
 
   Stream<List<City>> watchCities() {
@@ -81,7 +89,21 @@ class AreaRepository {
     for (final city in await _allCities()) {
       if (city.cityId == cityId) return city;
     }
-    return null;
+
+    return _fetchRemoteCity(cityId);
+  }
+
+  Future<City?> _fetchRemoteCity(String cityId) async {
+    if (!await _connectivity.isOnline) return null;
+    try {
+      final snap = await _firestore.collection('cities').doc(cityId).get();
+      if (!snap.exists || snap.data() == null) return null;
+      final city = City.fromMap(snap.data()!, id: cityId);
+      await _db.upsertCity(cityToCompanion(city, syncStatus: synced));
+      return city;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<Area?> resolveArea(String areaId) async {
@@ -99,7 +121,21 @@ class AreaRepository {
         isMajor: row.isMajor,
       );
     }
-    return null;
+
+    return _fetchRemoteArea(areaId);
+  }
+
+  Future<Area?> _fetchRemoteArea(String areaId) async {
+    if (!await _connectivity.isOnline) return null;
+    try {
+      final snap = await _firestore.collection('areas').doc(areaId).get();
+      if (!snap.exists || snap.data() == null) return null;
+      final area = Area.fromMap(snap.data()!, id: areaId);
+      await _db.upsertArea(areaToCompanion(area, syncStatus: synced));
+      return area;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<List<City>> _allCities() async {

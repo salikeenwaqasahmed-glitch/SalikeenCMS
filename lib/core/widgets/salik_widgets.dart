@@ -113,7 +113,7 @@ class SalikContactActions extends StatelessWidget {
         children: [
         _ContactActionButton(
           tooltip: l10n.t('call'),
-          icon: Icons.phone,
+          icon: Icons.phone_in_talk,
           colorIndex: 0,
           iconSize: iconSize,
           onPressed: () => ContactLauncher.call(mobileNumber),
@@ -338,7 +338,7 @@ class SalikCardContactRail extends StatelessWidget {
                 label: l10n.t('call'),
                 labelStyle: labelStyle,
                 icon: IconColors.icon(
-                  Icons.phone,
+                  Icons.phone_in_talk,
                   size: iconSize,
                   colorIndex: 0,
                 ),

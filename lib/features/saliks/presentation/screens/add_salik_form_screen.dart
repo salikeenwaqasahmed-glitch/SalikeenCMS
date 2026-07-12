@@ -59,10 +59,9 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
   CountryDialCode _whatsappCountry = kDefaultCountry;
   final _refName = TextEditingController();
   final _citySearch = TextEditingController();
-  final _areaSearch = TextEditingController();
+  final _address = TextEditingController();
 
   String _cityId = '';
-  String _areaId = '';
   String _gender = 'Male';
   String _dateBaith = DateTime.now().toIso8601String().split('T').first;
   String _createdDate = DateTime.now().toIso8601String().split('T').first;
@@ -124,7 +123,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     _whatsapp.dispose();
     _refName.dispose();
     _citySearch.dispose();
-    _areaSearch.dispose();
+    _address.dispose();
     super.dispose();
   }
 
@@ -150,7 +149,16 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     );
     _refName.text = salik.referenceName;
     _cityId = salik.cityId;
-    _areaId = salik.areaId;
+    if (salik.address.trim().isNotEmpty) {
+      _address.text = salik.address;
+    } else if (salik.areaId.isNotEmpty) {
+      final repo = ref.read(areaRepositoryProvider);
+      final area = findAreaInList(salik.areaId, areas) ??
+          await repo.resolveArea(salik.areaId);
+      if (area != null) {
+        _address.text = _localeLabel(area.areaName);
+      }
+    }
     _gender = UserSession.normalizeGender(salik.genderId);
     _dateBaith = salik.dateOfBaith;
     _createdDate = salik.createdDate;
@@ -158,20 +166,15 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     _sahibMehfil = salik.isSahibEMehfil;
     _whatsappSameAsMobile = SalikRepository.normalizePhone(salik.mobileNumber) ==
         SalikRepository.normalizePhone(salik.whatsappNumber);
-    await _syncLocationLabels(cities, areas);
+    await _syncCityLabel(cities);
   }
 
-  Future<void> _syncLocationLabels(List<City> cities, List<Area> areas) async {
+  Future<void> _syncCityLabel(List<City> cities) async {
     final repo = ref.read(areaRepositoryProvider);
     final city =
         findCityInList(_cityId, cities) ?? await repo.resolveCity(_cityId);
     if (city != null) {
       _citySearch.text = _localeLabel(city.cityName);
-    }
-    final area =
-        findAreaInList(_areaId, areas) ?? await repo.resolveArea(_areaId);
-    if (area != null) {
-      _areaSearch.text = _localeLabel(area.areaName);
     }
   }
 
@@ -189,7 +192,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
             null ||
         _dateBaith.trim().isEmpty ||
         _cityId.isEmpty ||
-        _areaId.isEmpty) {
+        _address.text.trim().isEmpty) {
       return false;
     }
     if (!_whatsappSameAsMobile &&
@@ -243,7 +246,8 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
       mobileNumber: mobile,
       whatsappNumber: whatsapp,
       cityId: _cityId,
-      areaId: _areaId,
+      areaId: '',
+      address: _address.text.trim(),
       genderId: effectiveGender,
       bazamId: '',
       khanqahId: '',
@@ -371,8 +375,6 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
       final city = cities.firstWhere((c) => c.cityId == id);
       setState(() {
         _cityId = id;
-        _areaId = '';
-        _areaSearch.clear();
         _citySearch.text = _localeLabel(city.cityName);
       });
     } else if (result.startsWith('new:')) {
@@ -385,8 +387,6 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
       if (existingInList != null) {
         setState(() {
           _cityId = existingInList.cityId;
-          _areaId = '';
-          _areaSearch.clear();
           _citySearch.text = _localeLabel(existingInList.cityName);
         });
         return;
@@ -400,87 +400,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
           ref.invalidate(areasByCityProvider(city.cityId));
           setState(() {
             _cityId = city.cityId;
-            _areaId = '';
-            _areaSearch.clear();
             _citySearch.text = _localeLabel(city.cityName);
-          });
-        }
-      } finally {
-        if (mounted) setState(() => _loading = false);
-      }
-    }
-  }
-
-  Future<void> _pickOrCreateArea(List<Area> areas) async {
-    if (_cityId.isEmpty) return;
-    final fl10n = _fl10n;
-    final isUrdu = _isUrduForm;
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final controller = TextEditingController(text: _areaSearch.text);
-        return AlertDialog(
-          title: Text(fl10n.t('area')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  hintText: fl10n.t('search_placeholder'),
-                ),
-                textDirection: isUrdu ? TextDirection.rtl : TextDirection.ltr,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              SizedBox(
-                height: 200,
-                width: double.maxFinite,
-                child: ListView(
-                  children: areas.map((area) {
-                    return ListTile(
-                      title: Text(_localeLabel(area.areaName)),
-                      onTap: () => Navigator.pop(ctx, 'pick:${area.areaId}'),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(fl10n.t('cancel')),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, 'new:${controller.text.trim()}'),
-              child: Text(fl10n.t('add_new_area')),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result == null || !mounted) return;
-
-    if (result.startsWith('pick:')) {
-      final id = result.substring(5);
-      final area = areas.firstWhere((a) => a.areaId == id);
-      setState(() {
-        _areaId = id;
-        _areaSearch.text = _localeLabel(area.areaName);
-      });
-    } else if (result.startsWith('new:')) {
-      final name = result.substring(4);
-      if (name.isEmpty) return;
-      setState(() => _loading = true);
-      try {
-        final repo = ref.read(areaRepositoryProvider);
-        final area = await repo.createArea(cityId: _cityId, name: name);
-        if (mounted) {
-          ref.invalidate(areasByCityProvider(_cityId));
-          setState(() {
-            _areaId = area.areaId;
-            _areaSearch.text = _localeLabel(area.areaName);
           });
         }
       } finally {
@@ -533,28 +453,17 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     final session = ref.watch(currentSessionProvider);
     final citiesAsync = ref.watch(citiesProvider);
     final cities = citiesAsync.valueOrNull ?? [];
-    final areasAsync = _cityId.isEmpty
-        ? const AsyncValue<List<Area>>.data([])
-        : ref.watch(areasByCityProvider(_cityId));
-    final areas = areasAsync.valueOrNull ?? [];
 
     if (!_initialized && cities.isNotEmpty && _cityId.isEmpty) {
       _cityId = cities.first.cityId;
-      unawaited(_syncLocationLabels(cities, areas));
-    }
-
-    if (_cityId.isNotEmpty) {
-      ref.listen(areasByCityProvider(_cityId), (previous, next) {
-        if (widget.isEditing && _initialized && next.hasValue) {
-          unawaited(_syncLocationLabels(cities, next.requireValue));
-        }
-      });
+      unawaited(_syncCityLabel(cities));
     }
 
     if (widget.isEditing && widget.salikId != null && !_initialized) {
       final salikAsync = ref.watch(salikByIdProvider(widget.salikId!));
       salikAsync.whenData((salik) {
         if (salik != null && !_initialized) {
+          final areas = ref.read(areasByCityProvider(salik.cityId)).valueOrNull ?? [];
           unawaited(() async {
             await _populateFromSalik(salik, cities, areas);
             if (mounted) setState(() => _initialized = true);
@@ -608,7 +517,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                   onSelected: (i) {
                     setState(() {
                       _formLocale = i == 1 ? 'ur' : 'en';
-                      unawaited(_syncLocationLabels(cities, areas));
+                      unawaited(_syncCityLabel(cities));
                     });
                   },
                 ),
@@ -850,24 +759,23 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           TextFormField(
-                            controller: _areaSearch,
-                            readOnly: true,
-                            enabled: _cityId.isNotEmpty,
+                            controller: _address,
+                            maxLength: 50,
                             decoration: InputDecoration(
-                              labelText: fl10n.t('area'),
+                              labelText: fl10n.t('address'),
                               prefixIcon: IconColors.icon(
-                                Icons.map,
+                                Icons.home_outlined,
                                 size: 22,
                                 colorIndex: 1,
                               ),
-                              suffixIcon: IconColors.icon(Icons.arrow_drop_down, size: 22),
+                              counterText: '',
                             ),
-                            validator: (_) => _areaId.isEmpty
-                                ? fl10n.t('error_select_required')
-                                : null,
-                            onTap: _cityId.isEmpty
-                                ? null
-                                : () => _pickOrCreateArea(areas),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return fl10n.t('required_field');
+                              }
+                              return null;
+                            },
                           ),
                         ],
                       ),

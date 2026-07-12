@@ -124,8 +124,10 @@ On first **admin** online login, `SeedService` seeds cities/areas (if needed) an
 
    ```bash
    dart pub global activate flutterfire_cli
-   flutterfire configure --project=salikeencms --out=lib/firebase_options_dev.dart --platforms=android --yes
-   flutterfire configure --project=salikeencms-prod --out=lib/firebase_options_prod.dart --platforms=android --yes
+   # Android keys live in flavor google-services.json (not Dart).
+   flutterfire configure --project=salikeencms --out=lib/firebase_options_dev.dart --platforms=web --yes
+   flutterfire configure --project=salikeencms-prod --out=lib/firebase_options_prod.dart --platforms=web --yes
+   # Copy/regenerate android/app/src/dev|prod/google-services.json from Firebase console per flavor.
    ```
 
 3. **Enable Firebase services** in both consoles:
@@ -225,7 +227,9 @@ Send the **arm64-v8a** APK for most phones. Avoid sharing debug APK via WhatsApp
 | Field | Description |
 |-------|-------------|
 | `genderId` | `Male` / `Female` |
-| `cityId`, `areaId` | Location refs |
+| `cityId` | Area reference (dropdown) |
+| `address` | Free-text address (max 50 chars) |
+| `areaId` | Legacy area ref (optional; old records only) |
 | `referenceName` | Optional reference person |
 | `dateOfBaith` | ISO date string |
 | `isNafiAsbat`, `isSahibEMehfil` | Spiritual flags |

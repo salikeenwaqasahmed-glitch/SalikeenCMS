@@ -1,1 +1,30 @@
-{"firestore":{"rules":"firestore.rules"},"flutter":{"platforms":{"android":{"default":{"projectId":"salikeencms","appId":"1:475949341237:android:6036ce344860dea8262f7c","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options_dev.dart":{"projectId":"salikeencms","configurations":{"android":"1:475949341237:android:6036ce344860dea8262f7c","web":"1:475949341237:web:b381c6abb774d74b262f7c"}},"lib/firebase_options_prod.dart":{"projectId":"salikeencms-prod","configurations":{"android":"1:833070717357:android:fa75ea082dd08c17aea924"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "salikeencms",
+          "appId": "1:475949341237:android:6036ce344860dea8262f7c",
+          "fileOutput": "android/app/src/dev/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options_dev.dart": {
+          "projectId": "salikeencms",
+          "configurations": {
+            "web": "1:475949341237:web:b381c6abb774d74b262f7c"
+          }
+        },
+        "lib/firebase_options_prod.dart": {
+          "projectId": "salikeencms-prod",
+          "configurations": {
+            "web": "1:833070717357:web:8f92874d89f237f0aea924"
+          }
+        }
+      }
+    }
+  }
+}

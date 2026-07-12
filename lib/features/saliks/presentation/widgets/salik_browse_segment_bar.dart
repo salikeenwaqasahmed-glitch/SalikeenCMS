@@ -6,7 +6,6 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_text.dart';
 import '../../../dashboard/presentation/widgets/segment_pill_bar.dart';
-import '../../domain/entities/area.dart';
 import '../../domain/entities/city.dart';
 import '../providers/area_provider.dart';
 import '../providers/salik_provider.dart';
@@ -69,30 +68,6 @@ class SalikBrowseSegmentBar extends ConsumerWidget {
                 filter.cityId,
               ),
             ),
-            if (filter.cityId != 'all') ...[
-              const SizedBox(height: AppSpacing.sm),
-              Consumer(
-                builder: (context, ref, _) {
-                  final areasAsync =
-                      ref.watch(areasByCityProvider(filter.cityId));
-                  return areasAsync.when(
-                    loading: () => _loadingPills(),
-                    error: (_, __) => _buildAreaPills(
-                      ref,
-                      l10n,
-                      areasForCity(filter.cityId),
-                      filter.areaId,
-                    ),
-                    data: (areas) => _buildAreaPills(
-                      ref,
-                      l10n,
-                      areas,
-                      filter.areaId,
-                    ),
-                  );
-                },
-              ),
-            ],
           ],
         ],
       ),
@@ -127,29 +102,6 @@ class SalikBrowseSegmentBar extends ConsumerWidget {
       selectedIndex: selectedIndex,
       onSelected: (i) {
         ref.read(salikFilterProvider.notifier).setCity(values[i]);
-      },
-    );
-  }
-
-  Widget _buildAreaPills(
-    WidgetRef ref,
-    AppLocalizations l10n,
-    List<Area> areas,
-    String selectedAreaId,
-  ) {
-    final labels = <String>[
-      l10n.t('all_areas'),
-      ...areas.map((a) => a.areaName),
-    ];
-    final values = ['all', ...areas.map((a) => a.areaId)];
-    final selectedIndex =
-        values.indexOf(selectedAreaId).clamp(0, values.length - 1);
-
-    return SegmentPillBar(
-      labels: labels,
-      selectedIndex: selectedIndex,
-      onSelected: (i) {
-        ref.read(salikFilterProvider.notifier).setArea(values[i]);
       },
     );
   }

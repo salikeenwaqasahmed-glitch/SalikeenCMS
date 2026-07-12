@@ -3,16 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:salik_management_system/features/auth/presentation/screens/login_screen.dart';
-import 'package:salik_management_system/firebase_options_dev.dart';
 
 import 'firebase_test_setup.dart';
 
 void main() {
   setUpAll(() async {
     setupFirebaseCoreMocks();
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.android,
-    );
+    await Firebase.initializeApp();
   });
 
   testWidgets('Login screen shows app title', (WidgetTester tester) async {

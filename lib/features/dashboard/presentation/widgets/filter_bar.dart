@@ -6,7 +6,6 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_text.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../saliks/domain/entities/area.dart';
 import '../../../saliks/domain/entities/city.dart';
 import '../../../saliks/presentation/providers/area_provider.dart';
 import '../../../saliks/presentation/providers/salik_provider.dart';
@@ -21,10 +20,6 @@ class FilterBar extends ConsumerWidget {
     final session = ref.watch(currentSessionProvider);
     final notifier = ref.read(salikFilterProvider.notifier);
     final cities = ref.watch(citiesProvider).valueOrNull ?? kCities;
-    final areas = filter.cityId == 'all'
-        ? <Area>[]
-        : (ref.watch(areasByCityProvider(filter.cityId)).valueOrNull ??
-            areasForCity(filter.cityId));
 
     return Card(
       child: Padding(
@@ -45,21 +40,6 @@ class FilterBar extends ConsumerWidget {
                 ),
               ],
               onChanged: notifier.setCity,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _FilterDropdown(
-              label: l10n.t('area'),
-              value: filter.areaId,
-              items: [
-                DropdownMenuItem(value: 'all', child: AppText.dropdownItem(l10n.t('all'))),
-                ...areas.map(
-                  (a) => DropdownMenuItem(
-                    value: a.areaId,
-                    child: AppText.dropdownItem(a.areaName),
-                  ),
-                ),
-              ],
-              onChanged: notifier.setArea,
             ),
             if (session != null &&
                 AccessControl.canViewAllGenders(session.role)) ...[
@@ -162,10 +142,6 @@ class FilterChips extends ConsumerWidget {
     final filter = ref.watch(salikFilterProvider);
     final notifier = ref.read(salikFilterProvider.notifier);
     final cities = ref.watch(citiesProvider).valueOrNull ?? kCities;
-    final areas = filter.cityId == 'all'
-        ? <Area>[]
-        : (ref.watch(areasByCityProvider(filter.cityId)).valueOrNull ??
-            areasForCity(filter.cityId));
 
     final chips = <Widget>[
       if (filter.cityId != 'all')
@@ -178,17 +154,6 @@ class FilterChips extends ConsumerWidget {
             maxLines: 1,
           ),
           onDeleted: () => notifier.setCity('all'),
-        ),
-      if (filter.areaId != 'all')
-        Chip(
-          label: AppText(
-            _areaChipLabel(
-              filter: filter,
-              areas: areas,
-            ),
-            maxLines: 1,
-          ),
-          onDeleted: () => notifier.setArea('all'),
         ),
       if (filter.genderId != 'all')
         Chip(
@@ -228,15 +193,4 @@ String _cityChipLabel({
   if (city == null) return cityId;
   final label = city.cityName.trim();
   return label.isNotEmpty ? label : cityId;
-}
-
-String _areaChipLabel({
-  required SalikFilter filter,
-  required List<Area> areas,
-}) {
-  final area =
-      findAreaInList(filter.areaId, areas) ?? findArea(filter.areaId);
-  if (area == null) return filter.areaId;
-  final label = area.areaName.trim();
-  return label.isNotEmpty ? label : filter.areaId;
 }
