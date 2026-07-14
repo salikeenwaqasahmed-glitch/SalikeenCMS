@@ -22,7 +22,7 @@ rules_version = '2';
 //
 // Roles (users/{uid}.role): admin | approval | editor | crudUser (legacy → editor)
 // Salik fields: approvalStatus pending|approved|rejected, approvedByUid/Name/At on decision
-// Location: cityId (area ref), address (free text max 50); areaId legacy optional
+// Location: cityId (city ref), address (free text max 50); areaId legacy optional
 //
 // Deploy: firebase deploy --only firestore:rules
 service cloud.firestore {
@@ -255,6 +255,7 @@ service cloud.firestore {
     // CMS staff: fix role/gender drift between local seed and Firestore profile.
     function isDemoStaffEmail(email) {
       return email in [
+        // Production roster
         'naveed@cms.com',
         'ayaz@cms.com',
         'mawaz@cms.com',
@@ -263,7 +264,14 @@ service cloud.firestore {
         'waheed@cms.com',
         'usman@cms.com',
         'sarkar@cms.com',
-        'waqas@cms.com'
+        'waqas@cms.com',
+        // Dev QA roster (@dev.cms.com)
+        'meditor@dev.cms.com',
+        'feditor@dev.cms.com',
+        'mapprove@dev.cms.com',
+        'fapprove@dev.cms.com',
+        'madmin@dev.cms.com',
+        'fadmin@dev.cms.com'
       ];
     }
 

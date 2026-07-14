@@ -12,6 +12,10 @@ class EnvBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (AppConfig.isProd) {
+      return const SizedBox.shrink();
+    }
+
     final label = compact || !showProject
         ? AppConfig.envDisplayName
         : '${AppConfig.envDisplayName} · ${AppConfig.firebaseProjectId}';

@@ -15,4 +15,7 @@ class AppConfig {
 
   static String get firebaseProjectId =>
       isProd ? 'salikeencms-prod' : 'salikeencms';
+
+  static String get staffEmailDomain =>
+      isProd ? '@cms.com' : '@dev.cms.com';
 }

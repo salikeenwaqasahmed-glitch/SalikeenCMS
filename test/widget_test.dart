@@ -25,5 +25,6 @@ void main() {
 
     expect(find.textContaining('SALIKEEN'), findsWidgets);
     expect(find.textContaining('Dev App'), findsOneWidget);
+    expect(find.textContaining('@dev.cms.com'), findsOneWidget);
   });
 }

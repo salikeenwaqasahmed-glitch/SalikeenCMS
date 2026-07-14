@@ -72,14 +72,23 @@ Open **Saliks → copy icon** → pick **Keep this record** → **Merge & remove
 
 | Build | Firebase project | Staff emails | Password |
 |-------|------------------|--------------|----------|
-| **dev** | `salikeencms` | `*dev@dev.cms.com` (see table) | `12345678` |
+| **dev** | `salikeencms` | `*@dev.cms.com` (see table) | `12345678` |
 | **prod** | `salikeencms-prod` | `*@cms.com` | `cms@1234` |
 
 `APP_ENV` dart-define + Android flavor must match (`dev`/`dev`, `prod`/`prod`). Default is **dev** so `flutter run` never hits prod by accident.
 
-Dev builds show **Dev App** chip on splash, login, and settings. Prod builds show **Production App**.
+Dev builds show **Dev App** chip on splash, login, and settings. Prod builds show no env badge.
 
 ### Offline login (CMS staff)
+
+On the login screen, enter **username only** (local part). The app appends the domain automatically:
+
+| Env | Type | Full email |
+|-----|------|------------|
+| dev | `madmin` | `madmin@dev.cms.com` |
+| prod | `sarkar` | `sarkar@cms.com` |
+
+The suffix (`@dev.cms.com` or `@cms.com`) is shown in the email field. You can still paste a full email if needed.
 
 Staff rosters: [`staff_users_dev.dart`](lib/core/auth/staff_users_dev.dart) and [`staff_users_prod.dart`](lib/core/auth/staff_users_prod.dart), selected at compile time via [`app_config.dart`](lib/core/config/app_config.dart). Written to local Drift on app start via [`local_user_seed.dart`](lib/core/auth/local_user_seed.dart). Passwords in [`seed_credentials.dart`](lib/core/auth/seed_credentials.dart).
 
@@ -97,6 +106,7 @@ Offline `uid` is `local-{email}` until online login binds Firebase Auth `uid` �
 ### Firebase
 
 - **Auth** — Email/password; `users/{uid}` profile required for rules
+- **Android** — Firebase keys live in flavor `google-services.json` only (`android/app/src/dev|prod/`). Dart `firebase_options_*.dart` is **web only**; Android calls `Firebase.initializeApp()` without Dart options.
 - **Firestore collections:**
   - `saliks` — contacts + approval fields
   - `users` — `name`, `email`, `role`, `gender`
@@ -105,6 +115,8 @@ Offline `uid` is `local-{email}` until online login binds Firebase Auth `uid` �
   - `meta/staffProvisioned` — CMS Auth + user profiles provisioned once
 
 On first **admin** online login, `SeedService` seeds cities/areas (if needed) and provisions all CMS staff in Firebase Auth + `users/{uid}` (background; login is not blocked).
+
+Deploy the same [`firestore.rules`](firestore.rules) to **both** Firebase projects (dev + prod).
 
 ## Prerequisites
 
@@ -204,31 +216,33 @@ Different **email** + **name** per person. Audit: `addedByUid` / `addedByName`, 
 
 ## Building APK
 
+Single universal APK per environment (no `--split-per-abi`).
+
 **Dev / QA** (`salikeencms`):
 
 ```bash
-flutter build apk --flavor dev --dart-define=APP_ENV=dev --split-per-abi --release
+flutter build apk --flavor dev --dart-define=APP_ENV=dev --release
 ```
 
-Output: `build/app/outputs/flutter-apk/app-dev-arm64-v8a-release.apk`
+Output: `build/app/outputs/flutter-apk/app-dev-release.apk`
 
 **Production** (`salikeencms-prod`):
 
 ```bash
-flutter build apk --flavor prod --dart-define=APP_ENV=prod --split-per-abi --release
+flutter build apk --flavor prod --dart-define=APP_ENV=prod --release
 ```
 
-Output: `build/app/outputs/flutter-apk/app-prod-arm64-v8a-release.apk`
+Output: `build/app/outputs/flutter-apk/app-prod-release.apk`
 
-Send the **arm64-v8a** APK for most phones. Avoid sharing debug APK via WhatsApp on Xiaomi devices.
+`--dart-define=APP_ENV=prod` is required for prod Firebase project + staff roster; flavor alone is not enough.
 
 ## Salik document fields (reference)
 
 | Field | Description |
 |-------|-------------|
 | `genderId` | `Male` / `Female` |
-| `cityId` | Area reference (dropdown) |
-| `address` | Free-text address (max 50 chars) |
+| `cityId` | City reference (dropdown) |
+| `address` | Free-text address (1–50 chars; required on new saliks) |
 | `areaId` | Legacy area ref (optional; old records only) |
 | `referenceName` | Optional reference person |
 | `dateOfBaith` | ISO date string |
@@ -263,17 +277,21 @@ admin     → all genders + delete any gender + duplicate tools
 | Update approved | Yes | Own gender | No |
 | Delete salik | Yes | Own gender | No |
 
-Rules file: [`firestore.rules`](firestore.rules)
+**Location validation** (`validSalikLocation`): new writes need non-empty `address` (max 50 chars) **or** legacy non-empty `areaId`. `cityId` optional string.
+
+Rules file: [`firestore.rules`](firestore.rules). Deploy to both projects:
 
 ```bash
-firebase deploy --only firestore:rules
+firebase deploy --only firestore:rules --project salikeencms
+firebase deploy --only firestore:rules --project salikeencms-prod
 ```
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| `PERMISSION_DENIED` | Deploy Firestore rules; verify `users/{uid}` exists with correct `role` + `gender` |
+| `PERMISSION_DENIED` on salik save | Deploy rules; new saliks need `address` (1–50 chars); legacy docs may use `areaId` only |
+| `PERMISSION_DENIED` (other) | Verify `users/{uid}` exists with correct `role` + `gender` |
 | Login spinner stuck | Hot restart; ensure online; admin seed runs in background after login |
 | Wrong role after login | Sign out; check Firestore `users/{uid}.role`; clear app data if stale offline cache |
 | Editor pending missing | Rebuild app; pending matched by Firebase `uid` / `local-{email}` |

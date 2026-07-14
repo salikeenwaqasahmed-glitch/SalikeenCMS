@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/auth/local_auth_store.dart';
+import '../../../../core/auth/staff_email.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -34,7 +36,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final email =
           await ref.read(localAuthStoreProvider).getRememberedEmail();
       if (email != null && email.isNotEmpty && mounted) {
-        _emailController.text = email;
+        _emailController.text = localPartFromStaffEmail(email);
       }
     });
   }
@@ -50,7 +52,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loginError = null);
     await ref.read(authControllerProvider.notifier).signIn(
-          _emailController.text.trim(),
+          composeStaffEmail(_emailController.text),
           _passwordController.text,
         );
   }
@@ -158,14 +160,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         controller: _emailController,
                                         decoration: InputDecoration(
                                           labelText: l10n.t('email'),
+                                          hintText: loginEmailHint(),
+                                          suffixText: AppConfig.staffEmailDomain,
                                           prefixIcon: const Icon(
                                             Icons.email_outlined,
                                           ),
                                         ),
-                                        keyboardType:
-                                            TextInputType.emailAddress,
+                                        keyboardType: TextInputType.text,
+                                        autocorrect: false,
                                         validator: (v) =>
-                                            FormValidators.emailField(v, l10n),
+                                            staffEmailLocalPartValidator(
+                                          v,
+                                          l10n,
+                                        ),
                                       ),
                                       const SizedBox(height: AppSpacing.md),
                                       TextFormField(
