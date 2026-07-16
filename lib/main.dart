@@ -3,9 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'core/auth/session_idle_timeout.dart';
 import 'core/auth/local_auth_store.dart';
 import 'core/auth/local_user_seed.dart';
+import 'core/config/app_config.dart';
 import 'core/data/local_data_seed.dart';
 import 'core/database/app_database.dart';
 import 'core/localization/app_localizations.dart';
@@ -31,6 +32,10 @@ Future<void> main() async {
   await LocalUserSeed.ensureUsers(authStore);
   await LocalDataSeed.ensureReferenceData(database);
   debugPrint('Local seed done: users + reference data ready for offline use');
+  debugPrint(
+    'App env: ${AppConfig.env} firebase=${AppConfig.firebaseProjectId} '
+    'staffDomain=${AppConfig.staffEmailDomain}',
+  );
 
   runApp(
     UncontrolledProviderScope(
@@ -66,62 +71,60 @@ class SalikManagementApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (context, child) => AuthLoadingGate(child: child),
+      builder: (context, child) => SessionIdleTimeout(
+        child: LoginSyncErrorListener(
+          child: AuthLoadingGate(child: child),
+        ),
+      ),
       routerConfig: router,
     );
   }
 }
 
-/// Full-screen loader during bootstrap, sign-in, and post-login redirect.
-class AuthLoadingGate extends ConsumerStatefulWidget {
+/// Shows SnackBar when post-login Firestore sync fails.
+class LoginSyncErrorListener extends ConsumerWidget {
+  const LoginSyncErrorListener({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<String?>(loginSyncErrorProvider, (prev, next) {
+      if (next == null || next.isEmpty || !context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(next)),
+      );
+      ref.read(loginSyncErrorProvider.notifier).state = null;
+    });
+
+    ref.listen<String?>(seedMessageProvider, (prev, next) {
+      if (next == null || !context.mounted) return;
+      final l10n = AppLocalizations(const Locale('en'));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.t(next))),
+      );
+      ref.read(seedMessageProvider.notifier).state = null;
+    });
+
+    return child;
+  }
+}
+
+/// Full-screen loader only while sign-in request is in flight.
+class AuthLoadingGate extends ConsumerWidget {
   const AuthLoadingGate({super.key, this.child});
 
   final Widget? child;
 
   @override
-  ConsumerState<AuthLoadingGate> createState() => _AuthLoadingGateState();
-}
-
-class _AuthLoadingGateState extends ConsumerState<AuthLoadingGate> {
-  late final GoRouter _router;
-  String _location = '/login';
-
-  @override
-  void initState() {
-    super.initState();
-    _router = ref.read(appRouterProvider);
-    _location = routerMatchedLocation(_router);
-    _router.routerDelegate.addListener(_onRouteChanged);
-  }
-
-  void _onRouteChanged() {
-    if (!mounted) return;
-    final next = routerMatchedLocation(_router);
-    if (next == _location) return;
-    setState(() => _location = next);
-  }
-
-  @override
-  void dispose() {
-    _router.routerDelegate.removeListener(_onRouteChanged);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final signingIn = ref.watch(authControllerProvider).isLoading;
-    final auth = ref.watch(authStateProvider);
-    final bootstrapping = auth.isLoading;
-    final session = auth.valueOrNull;
-    final onLogin = _location == '/login';
-    final pendingDashboard = !bootstrapping && session != null && onLogin;
-    final showGate = bootstrapping || signingIn || pendingDashboard;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final showGate = ref.watch(authControllerProvider).isLoading;
 
     return Directionality(
       textDirection: TextDirection.ltr,
       child: Stack(
         children: [
-          if (widget.child != null) widget.child!,
+          if (child != null) child!,
           if (showGate)
             const ColoredBox(
               color: AppTheme.primaryColor,
@@ -135,23 +138,32 @@ class _AuthLoadingGateState extends ConsumerState<AuthLoadingGate> {
 
 final appDatabaseHydrationProvider = Provider<void>((ref) {
   Future<void> syncWhenOnline({UserSession? session}) async {
-    if (!await ref.read(connectivityServiceProvider).isOnline) return;
+    if (ref.read(postLoginSyncInFlightProvider)) return;
+    if (ref.read(authRepositoryProvider).isLoginAttemptInProgress) return;
 
-    final authRepo = ref.read(authRepositoryProvider);
-    if (await authRepo.hasPersistedLoginIntent()) {
-      await authRepo.promoteOfflineSessionIfOnline();
+    try {
+      final online = await ref.read(connectivityServiceProvider).isOnline;
+      if (!online) return;
+
+      final authRepo = ref.read(authRepositoryProvider);
+      if (await authRepo.hasPersistedLoginIntent()) {
+        await authRepo.promoteOfflineSessionIfOnline();
+      }
+
+      final active = session ?? ref.read(authStateProvider).valueOrNull;
+      if (active == null) return;
+
+      final sync = ref.read(syncServiceProvider);
+      await sync.hydrate(active);
+      await sync.repairSyncQueue();
+      await sync.syncNow(sessionOverride: active);
+    } catch (e, st) {
+      debugPrint('Bootstrap sync failed: $e\n$st');
     }
-
-    final active = session ?? ref.read(authStateProvider).valueOrNull;
-    if (active == null) return;
-
-    final sync = ref.read(syncServiceProvider);
-    await sync.hydrate(active);
-    await sync.repairSyncQueue();
-    await sync.syncNow(sessionOverride: active);
   }
 
   ref.listen(authStateProvider, (prev, next) {
+    if (ref.read(postLoginSyncInFlightProvider)) return;
     final session = next.valueOrNull;
     if (session == null) return;
     if (prev?.valueOrNull?.uid == session.uid) return;
@@ -159,6 +171,7 @@ final appDatabaseHydrationProvider = Provider<void>((ref) {
   });
 
   ref.listen(connectivityStatusProvider, (prev, next) {
+    if (ref.read(postLoginSyncInFlightProvider)) return;
     final online = next.valueOrNull ?? false;
     final wasOnline = prev?.valueOrNull ?? false;
     if (online && !wasOnline) {

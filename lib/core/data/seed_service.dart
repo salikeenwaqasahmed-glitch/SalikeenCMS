@@ -21,12 +21,6 @@ class SeedService {
 
     final batch = _firestore.batch();
 
-    for (final city in kCities) {
-      batch.set(
-        _firestore.collection('cities').doc(city.cityId),
-        city.toMap(),
-      );
-    }
     for (final area in kAreas) {
       batch.set(
         _firestore.collection('areas').doc(area.areaId),

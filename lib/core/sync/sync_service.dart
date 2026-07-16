@@ -9,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/domain/user_session.dart';
 import '../../features/saliks/domain/entities/area.dart';
-import '../../features/saliks/domain/entities/city.dart';
 import '../../features/saliks/domain/entities/approval_status.dart';
 import '../../features/saliks/domain/entities/salik.dart';
 import '../auth/local_user_seed.dart';
@@ -226,7 +225,7 @@ class SyncService {
 
   Future<void> _pushQueue(UserSession session) async {
     final items = await _db.pendingSyncItems();
-    const priority = {'cities': 0, 'areas': 1, 'saliks': 2};
+    const priority = {'areas': 0, 'saliks': 1};
     items.sort((a, b) {
       final left = priority[a.collection] ?? 9;
       final right = priority[b.collection] ?? 9;
@@ -258,12 +257,6 @@ class SyncService {
                 await _db.removeSyncItem(item.id);
               }
             }
-          case 'cities':
-            final decoded = Map<String, dynamic>.from(
-              jsonDecode(item.payloadJson) as Map,
-            );
-            await _pushCity(item.operation, item.docId, decoded);
-            await _db.removeSyncItem(item.id);
           case 'areas':
             final decoded = Map<String, dynamic>.from(
               jsonDecode(item.payloadJson) as Map,
@@ -422,7 +415,7 @@ class SyncService {
   ) async {
     final patch = _approvalPatch(salik, authUid);
     try {
-      await ref.update(patch);
+      await ref.update(_stripLegacyCityField(patch));
     } on FirebaseException catch (e) {
       if (e.code == 'not-found') {
         await ref.set(_salikPayloadForPush(salik));
@@ -525,7 +518,7 @@ class SyncService {
         final clean = _salikPayloadForPush(salik);
         final snap = await ref.get();
         if (snap.exists) {
-          await ref.update(clean);
+          await ref.update(_stripLegacyCityField(clean));
         } else {
           await ref.set(clean);
         }
@@ -636,6 +629,13 @@ class SyncService {
       ..removeWhere((_, value) => value == null);
   }
 
+  Map<String, dynamic> _stripLegacyCityField(Map<String, dynamic> payload) {
+    return {
+      ...payload,
+      'cityId': FieldValue.delete(),
+    };
+  }
+
   Future<void> _pushSalik(
     String operation,
     String docId,
@@ -671,9 +671,9 @@ class SyncService {
           if (server.isPending &&
               !incoming.isPending &&
               authUid.isNotEmpty) {
-            await ref.update(_approvalPatch(incoming, authUid));
+            await ref.update(_stripLegacyCityField(_approvalPatch(incoming, authUid)));
           } else {
-            await ref.update(clean);
+            await ref.update(_stripLegacyCityField(clean));
           }
         } else {
           await ref.set(clean);
@@ -683,28 +683,6 @@ class SyncService {
         await ref.delete();
         await _db.deleteSalikLocal(docId);
         await _db.removeSyncItemsForDoc('saliks', docId);
-    }
-  }
-
-  Future<void> _pushCity(
-    String operation,
-    String docId,
-    Map<String, dynamic> payload,
-  ) async {
-    final ref = _firestore.collection('cities').doc(docId);
-    switch (operation) {
-      case 'create':
-        await ref.set(payload);
-        await _db.upsertCity(
-          cityToCompanion(City.fromMap(payload), syncStatus: synced),
-        );
-      case 'update':
-        await ref.update(payload);
-        await _db.upsertCity(
-          cityToCompanion(City.fromMap(payload), syncStatus: synced),
-        );
-      case 'delete':
-        await ref.delete();
     }
   }
 
@@ -721,7 +699,7 @@ class SyncService {
           areaToCompanion(Area.fromMap(payload), syncStatus: synced),
         );
       case 'update':
-        await ref.update(payload);
+        await ref.update(_stripLegacyCityField(payload));
         await _db.upsertArea(
           areaToCompanion(Area.fromMap(payload), syncStatus: synced),
         );
@@ -734,7 +712,6 @@ class SyncService {
     if (!await _connectivity.isOnline) return;
 
     await _pullSaliks(session);
-    await _pullCities();
     await _pullAreas();
     _invalidateLocationProviders();
   }
@@ -742,8 +719,6 @@ class SyncService {
   void _invalidateLocationProviders() {
     final ref = _ref;
     if (ref == null) return;
-    ref.invalidate(citiesProvider);
-    ref.invalidate(cityByIdProvider);
     ref.invalidate(areaByIdProvider);
   }
 
@@ -807,11 +782,6 @@ class SyncService {
         continue;
       }
     }
-    for (final row in await _db.getAllCities()) {
-      if (row.syncStatus == synced) {
-        await _db.removeSyncItemsForDoc('cities', row.cityId);
-      }
-    }
     for (final row in await _db.getAllAreas()) {
       if (row.syncStatus == synced) {
         await _db.removeSyncItemsForDoc('areas', row.areaId);
@@ -827,8 +797,6 @@ class SyncService {
       switch (item.collection) {
         case 'saliks':
           await _finalizeSalikQueueItem(item);
-        case 'cities':
-          await _finalizeCityQueueItem(item);
         case 'areas':
           await _finalizeAreaQueueItem(item);
         default:
@@ -877,30 +845,6 @@ class SyncService {
     }
   }
 
-  Future<void> _finalizeCityQueueItem(SyncQueueData item) async {
-    final local = await _db.getCityById(item.docId);
-    if (local == null && item.retryCount > 0) {
-      await _db.removeSyncItem(item.id);
-      return;
-    }
-    if (local?.syncStatus == synced) {
-      await _db.removeSyncItemsForDoc('cities', item.docId);
-      return;
-    }
-
-    if (!await _connectivity.isOnline) return;
-
-    try {
-      final snap = await _firestore.collection('cities').doc(item.docId).get();
-      if (!snap.exists) return;
-      final city = City.fromMap(snap.data()!, id: item.docId);
-      await _db.upsertCity(cityToCompanion(city, syncStatus: synced));
-      await _db.removeSyncItemsForDoc('cities', item.docId);
-    } catch (e) {
-      debugPrint('Finalize city queue ${item.docId}: $e');
-    }
-  }
-
   Future<void> _finalizeAreaQueueItem(SyncQueueData item) async {
     final local = await _db.getAreaById(item.docId);
     if (local == null && item.retryCount > 0) {
@@ -925,49 +869,14 @@ class SyncService {
     }
   }
 
-  Future<void> _pullCities() async {
-    final snapshot = await _firestore.collection('cities').get();
-    if (snapshot.docs.isEmpty) {
-      for (final city in kCities) {
-        await _db.upsertCity(cityToCompanion(city));
-      }
-      return;
-    }
-    for (final doc in snapshot.docs) {
-      try {
-        final city = City.fromMap(doc.data(), id: doc.id);
-        if (isDuplicateCanonicalCity(city)) {
-          final canonical = findCanonicalCityByName(name: city.cityName);
-          if (canonical != null) {
-            await _db.upsertCity(
-              cityToCompanion(
-                City(
-                  cityId: doc.id,
-                  cityName: canonical.cityName,
-                ),
-                syncStatus: aliasSynced,
-              ),
-            );
-          }
-          continue;
-        }
-        await _db.upsertCity(cityToCompanion(city));
-      } catch (e) {
-        debugPrint('Skip invalid city ${doc.id}: $e');
-      }
-    }
-    for (final city in kCities) {
-      await _db.upsertCity(cityToCompanion(city));
-    }
-  }
-
   Future<void> _pullAreas() async {
     final snapshot = await _firestore.collection('areas').get();
+    final serverIds = snapshot.docs.map((doc) => doc.id).toSet();
+
     if (snapshot.docs.isEmpty) {
-      for (final city in kCities) {
-        for (final area in areasForCity(city.cityId)) {
-          await _db.upsertArea(areaToCompanion(area));
-        }
+      await _pruneStaleAreaCache(serverIds);
+      for (final area in kAreas) {
+        await _db.upsertArea(areaToCompanion(area));
       }
       return;
     }
@@ -980,7 +889,6 @@ class SyncService {
             areaToCompanion(
               Area(
                 areaId: doc.id,
-                cityId: area.cityId,
                 areaName: canonical.areaName,
                 isMajor: canonical.isMajor,
               ),
@@ -992,6 +900,16 @@ class SyncService {
         await _db.upsertArea(areaToCompanion(area));
       } catch (e) {
         debugPrint('Skip invalid area ${doc.id}: $e');
+      }
+    }
+    await _pruneStaleAreaCache(serverIds);
+  }
+
+  Future<void> _pruneStaleAreaCache(Set<String> serverIds) async {
+    for (final row in await _db.getAllAreas()) {
+      if (row.syncStatus != synced) continue;
+      if (!serverIds.contains(row.areaId)) {
+        await _db.deleteAreaLocal(row.areaId);
       }
     }
   }

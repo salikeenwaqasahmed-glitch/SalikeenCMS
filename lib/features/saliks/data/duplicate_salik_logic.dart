@@ -57,19 +57,19 @@ DuplicateSalikReason? _pairReason(Salik a, Salik b) {
 
   final mobileA = _normalizePhone(a.mobileNumber);
   final mobileB = _normalizePhone(b.mobileNumber);
-  if (mobileA.isNotEmpty && mobileA == mobileB) {
-    return DuplicateSalikReason.mobile;
-  }
+  final sameMobile = mobileA.isNotEmpty && mobileA == mobileB;
 
   final nameA = _normalizeName(a.name);
   final fatherA = _normalizeName(a.fatherName);
   final nameB = _normalizeName(b.name);
   final fatherB = _normalizeName(b.fatherName);
-  if (nameA.isNotEmpty &&
+  final sameNameAndFather = nameA.isNotEmpty &&
       fatherA.isNotEmpty &&
       nameA == nameB &&
-      fatherA == fatherB) {
-    return DuplicateSalikReason.name;
+      fatherA == fatherB;
+
+  if (sameMobile && sameNameAndFather) {
+    return DuplicateSalikReason.mobile;
   }
 
   return null;
@@ -128,7 +128,6 @@ Salik mergeSalikRecords(Salik keep, Salik other) {
     fatherName: pick(keep.fatherName, other.fatherName),
     mobileNumber: pick(keep.mobileNumber, other.mobileNumber),
     whatsappNumber: pick(keep.whatsappNumber, other.whatsappNumber),
-    cityId: pick(keep.cityId, other.cityId),
     areaId: pick(keep.areaId, other.areaId),
     address: pick(keep.address, other.address),
     bazamId: pick(keep.bazamId, other.bazamId),

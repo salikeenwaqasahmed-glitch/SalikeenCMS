@@ -244,8 +244,9 @@ class _DuplicateGroupCardState extends ConsumerState<_DuplicateGroupCard> {
             ),
             const SizedBox(height: AppSpacing.sm),
             ...widget.group.saliks.map((salik) {
-              final city = ref.watch(cityByIdProvider(salik.cityId)).valueOrNull ??
-                  findCity(salik.cityId);
+              final area = ref.watch(areaByIdProvider(salik.areaId)).valueOrNull ??
+                  findArea(salik.areaId);
+              final locationLabel = area?.areaName ?? salik.address.trim();
               return Column(
                 children: [
                   RadioListTile<String>(
@@ -271,7 +272,7 @@ class _DuplicateGroupCardState extends ConsumerState<_DuplicateGroupCard> {
                       Expanded(
                         child: SalikListTile(
                           salik: salik,
-                          cityName: city?.cityName ?? '',
+                          locationLabel: locationLabel,
                           onProfile: () =>
                               context.push('/saliks/profile/${salik.salikId}'),
                           statusBadge: salik.isPending

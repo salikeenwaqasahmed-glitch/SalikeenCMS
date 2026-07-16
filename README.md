@@ -100,6 +100,7 @@ Offline `uid` is `local-{email}` until online login binds Firebase Auth `uid` �
 
 - SHA-256 password hash (per-device salt) for offline login
 - **Sign out** before switching users — avoids stale Firebase session
+- **Idle timeout** — 15 minutes without app use signs you out (re-login required)
 - Sync re-auth uses logged-in email only
 - Devices with cached credentials are **trusted**
 
@@ -110,11 +111,20 @@ Offline `uid` is `local-{email}` until online login binds Firebase Auth `uid` �
 - **Firestore collections:**
   - `saliks` — contacts + approval fields
   - `users` — `name`, `email`, `role`, `gender`
-  - `cities`, `areas` — reference data (also in [`reference_data.dart`](lib/core/data/reference_data.dart))
-  - `meta/seeded` — cities/areas seeded once
+  - `areas` — area reference data (also in [`reference_data.dart`](lib/core/data/reference_data.dart))
+  - `meta/seeded` — areas seeded once
   - `meta/staffProvisioned` — CMS Auth + user profiles provisioned once
 
-On first **admin** online login, `SeedService` seeds cities/areas (if needed) and provisions all CMS staff in Firebase Auth + `users/{uid}` (background; login is not blocked).
+On first **admin** online login, `SeedService` seeds areas (if needed) and provisions all CMS staff in Firebase Auth + `users/{uid}` (background; login is not blocked).
+
+**Re-seed canonical areas** (Gulshan, Model Town, etc. from `kAreas` in [`reference_data.dart`](lib/core/data/reference_data.dart)):
+
+1. In Firebase Console → Firestore → delete document `meta/seeded` (dev and/or prod as needed).
+2. Optionally clear stale `areas` docs if you want a clean slate.
+3. Log in online as **admin** — `SeedService.seedIfNeeded()` writes `kAreas` to Firestore once.
+4. Pull-to-sync on any device (or restart app online) — sync prunes ghost local areas not on Firestore, then pulls fresh docs.
+
+Local Drift cache is pruned on sync: `synced` areas missing from Firestore are removed; `pendingCreate` rows are kept until push succeeds.
 
 Deploy the same [`firestore.rules`](firestore.rules) to **both** Firebase projects (dev + prod).
 
@@ -154,11 +164,19 @@ Deploy the same [`firestore.rules`](firestore.rules) to **both** Firebase projec
    firebase deploy --only firestore:rules --project salikeencms-prod
    ```
 
-5. **Staff accounts** — log in once as admin online so `SeedService` provisions the roster:
+5. **Firebase Auth accounts (dev)** — before first online login, sync staff emails into Firebase Auth:
+
+   ```bash
+   node scripts/sync_dev_firebase_auth.mjs
+   ```
+
+   Without this step, local offline login works but Firestore sync fails until accounts exist.
+
+6. **Staff accounts** — log in once as admin online so `SeedService` provisions the roster:
    - **Dev:** `madmin@dev.cms.com` / `12345678` on `salikeencms` (provisions all dev accounts)
    - **Prod:** `sarkar@cms.com` / `cms@1234` on `salikeencms-prod`
 
-6. **Run the app (dev default)**
+7. **Run the app (dev default)**
 
    ```bash
    flutter run --flavor dev --dart-define=APP_ENV=dev
@@ -241,9 +259,8 @@ Output: `build/app/outputs/flutter-apk/app-prod-release.apk`
 | Field | Description |
 |-------|-------------|
 | `genderId` | `Male` / `Female` |
-| `cityId` | City reference (dropdown) |
-| `address` | Free-text address (1–50 chars; required on new saliks) |
-| `areaId` | Legacy area ref (optional; old records only) |
+| `areaId` | Area reference (dropdown) |
+| `address` | Free-text address (1–50 chars; required) |
 | `referenceName` | Optional reference person |
 | `dateOfBaith` | ISO date string |
 | `isNafiAsbat`, `isSahibEMehfil` | Spiritual flags |
@@ -277,7 +294,7 @@ admin     → all genders + delete any gender + duplicate tools
 | Update approved | Yes | Own gender | No |
 | Delete salik | Yes | Own gender | No |
 
-**Location validation** (`validSalikLocation`): new writes need non-empty `address` (max 50 chars) **or** legacy non-empty `areaId`. `cityId` optional string.
+**Location validation** (`validSalikLocation`): writes need non-empty `areaId` + `address` (1–50 chars). No `cityId`.
 
 Rules file: [`firestore.rules`](firestore.rules). Deploy to both projects:
 
@@ -290,7 +307,7 @@ firebase deploy --only firestore:rules --project salikeencms-prod
 
 | Symptom | Fix |
 |---------|-----|
-| `PERMISSION_DENIED` on salik save | Deploy rules; new saliks need `address` (1–50 chars); legacy docs may use `areaId` only |
+| `PERMISSION_DENIED` on salik save | Deploy rules; saliks need `areaId` + `address` (1–50 chars) |
 | `PERMISSION_DENIED` (other) | Verify `users/{uid}` exists with correct `role` + `gender` |
 | Login spinner stuck | Hot restart; ensure online; admin seed runs in background after login |
 | Wrong role after login | Sign out; check Firestore `users/{uid}.role`; clear app data if stale offline cache |

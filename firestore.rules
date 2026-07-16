@@ -22,7 +22,7 @@ rules_version = '2';
 //
 // Roles (users/{uid}.role): admin | approval | editor | crudUser (legacy → editor)
 // Salik fields: approvalStatus pending|approved|rejected, approvedByUid/Name/At on decision
-// Location: cityId (city ref), address (free text max 50); areaId legacy optional
+// Location: areaId + address (free text max 50)
 //
 // Deploy: firebase deploy --only firestore:rules
 service cloud.firestore {
@@ -89,19 +89,14 @@ service cloud.firestore {
         || (data[key] is string && data[key].size() <= maxLen);
     }
 
-    // New saliks: address required (max 50). Legacy docs may still use areaId only.
+    // Saliks: non-empty areaId + address (max 50 chars).
     function validSalikLocation(data) {
-      return optionalString(data, 'cityId')
-        && optionalStringMax(data, 'areaId', 128)
-        && (
-          ('address' in data
-            && data.address is string
-            && data.address.size() > 0
-            && data.address.size() <= 50)
-          || ('areaId' in data
-            && data.areaId is string
-            && data.areaId.size() > 0)
-        );
+      return data.areaId is string
+        && data.areaId.size() > 0
+        && data.areaId.size() <= 128
+        && data.address is string
+        && data.address.size() > 0
+        && data.address.size() <= 50;
     }
 
     // Read: admin = all genders; approval/editor = own gender (incl. pending queue).
@@ -329,12 +324,6 @@ service cloud.firestore {
       allow create: if canCreateSalik();
       allow update: if canUpdateSalik();
       allow delete: if canDeleteSalik();
-    }
-
-    match /cities/{id} {
-      allow read: if signedIn();
-      allow create: if signedIn();
-      allow update, delete: if signedIn() && isAdmin();
     }
 
     match /areas/{id} {

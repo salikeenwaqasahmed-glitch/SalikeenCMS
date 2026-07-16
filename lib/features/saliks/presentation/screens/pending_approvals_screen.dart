@@ -60,8 +60,9 @@ class PendingApprovalsScreen extends ConsumerWidget {
               itemCount: saliks.length,
               itemBuilder: (context, index) {
                 final salik = saliks[index];
-                final city = ref.watch(cityByIdProvider(salik.cityId)).valueOrNull ??
-                    findCity(salik.cityId);
+                final area = ref.watch(areaByIdProvider(salik.areaId)).valueOrNull ??
+                    findArea(salik.areaId);
+                final locationLabel = area?.areaName ?? salik.address.trim();
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -69,7 +70,7 @@ class PendingApprovalsScreen extends ConsumerWidget {
                       _PendingSubmitterLine(salik: salik),
                     SalikListTile(
                       salik: salik,
-                      cityName: city?.cityName ?? '',
+                      locationLabel: locationLabel,
                       onProfile: () =>
                           context.push('/saliks/profile/${salik.salikId}'),
                       statusBadge: _statusLabel(l10n, salik.approvalStatus),

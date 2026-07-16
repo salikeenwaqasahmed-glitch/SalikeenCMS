@@ -3,13 +3,11 @@ import '../../../../core/utils/text_field_merge.dart';
 class Area {
   const Area({
     required this.areaId,
-    required this.cityId,
     required this.areaName,
     this.isMajor = false,
   });
 
   final String areaId;
-  final String cityId;
   final String areaName;
   final bool isMajor;
 
@@ -20,7 +18,6 @@ class Area {
     }
     return Area(
       areaId: areaId,
-      cityId: map['cityId'] as String? ?? '',
       areaName: mergeLegacyBilingual(
         primary: map['areaName'] as String? ?? '',
         secondary: map['areaNameUrdu'] as String? ?? '',
@@ -29,10 +26,13 @@ class Area {
     );
   }
 
-  Map<String, dynamic> toMap() => {
-        'areaId': areaId,
-        'cityId': cityId,
-        'areaName': areaName,
-        'isMajor': isMajor,
-      };
+  Map<String, dynamic> toMap() {
+    final split = splitBilingualLabel(areaName);
+    return {
+      'areaId': areaId,
+      if (split.english.isNotEmpty) 'areaName': split.english,
+      if (split.urdu.isNotEmpty) 'areaNameUrdu': split.urdu,
+      'isMajor': isMajor,
+    };
+  }
 }

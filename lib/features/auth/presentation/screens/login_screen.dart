@@ -76,13 +76,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         });
       } else if (prev?.isLoading == true && next.hasValue) {
         setState(() => _loginError = null);
-        final seedKey = ref.read(seedMessageProvider);
-        if (seedKey != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.t(seedKey))),
-          );
-          ref.read(seedMessageProvider.notifier).state = null;
-        }
       }
     });
 

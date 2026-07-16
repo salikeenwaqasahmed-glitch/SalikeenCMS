@@ -9,7 +9,6 @@ import '../config/app_config.dart';
 import '../utils/text_field_merge.dart';
 import '../../features/saliks/domain/entities/approval_status.dart';
 import '../../features/saliks/domain/entities/area.dart';
-import '../../features/saliks/domain/entities/city.dart';
 import '../../features/saliks/domain/entities/salik.dart';
 
 part 'app_database.g.dart';
@@ -18,7 +17,7 @@ const synced = 'synced';
 const pendingCreate = 'pendingCreate';
 const pendingUpdate = 'pendingUpdate';
 const pendingDelete = 'pendingDelete';
-/// Lookup-only row mapping a remote doc id to canonical city/area names.
+/// Lookup-only row mapping a remote doc id to canonical area names.
 const aliasSynced = 'alias';
 
 class LocalUsers extends Table {
@@ -40,7 +39,6 @@ class LocalSaliks extends Table {
   TextColumn get fatherName => text()();
   TextColumn get mobileNumber => text()();
   TextColumn get whatsappNumber => text()();
-  TextColumn get cityId => text()();
   TextColumn get areaId => text()();
   TextColumn get address => text().withDefault(const Constant(''))();
   TextColumn get genderId => text()();
@@ -75,19 +73,8 @@ class LocalSaliks extends Table {
   Set<Column<Object>> get primaryKey => {salikId};
 }
 
-class LocalCities extends Table {
-  TextColumn get cityId => text()();
-  TextColumn get cityName => text()();
-  TextColumn get syncStatus =>
-      text().withDefault(const Constant('synced'))();
-
-  @override
-  Set<Column<Object>> get primaryKey => {cityId};
-}
-
 class LocalAreas extends Table {
   TextColumn get areaId => text()();
-  TextColumn get cityId => text()();
   TextColumn get areaName => text()();
   BoolColumn get isMajor => boolean().withDefault(const Constant(false))();
   TextColumn get syncStatus =>
@@ -109,14 +96,14 @@ class SyncQueue extends Table {
   TextColumn get lastError => text().nullable()();
 }
 
-@DriftDatabase(tables: [LocalUsers, LocalSaliks, LocalCities, LocalAreas, SyncQueue])
+@DriftDatabase(tables: [LocalUsers, LocalSaliks, LocalAreas, SyncQueue])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -168,24 +155,6 @@ class AppDatabase extends _$AppDatabase {
             await migrator.dropColumn(localSaliks, 'father_name_english');
             await migrator.dropColumn(localSaliks, 'father_name_urdu');
 
-            final cityRows = await customSelect(
-              'SELECT city_id, city_name, city_name_urdu FROM local_cities',
-            ).get();
-            for (final row in cityRows) {
-              final merged = mergeLegacyBilingual(
-                primary: row.read<String>('city_name'),
-                secondary: row.read<String>('city_name_urdu'),
-              );
-              await customUpdate(
-                'UPDATE local_cities SET city_name = ? WHERE city_id = ?',
-                variables: [
-                  Variable.withString(merged),
-                  Variable.withString(row.read<String>('city_id')),
-                ],
-              );
-            }
-            await migrator.dropColumn(localCities, 'city_name_urdu');
-
             final areaRows = await customSelect(
               'SELECT area_id, area_name, area_name_urdu FROM local_areas',
             ).get();
@@ -206,6 +175,13 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 5) {
             await migrator.addColumn(localSaliks, localSaliks.address);
+          }
+          if (from < 6) {
+            await customStatement('DROP TABLE IF EXISTS local_cities');
+          }
+          if (from < 7) {
+            await migrator.dropColumn(localSaliks, 'city_id');
+            await migrator.dropColumn(localAreas, 'city_id');
           }
         },
       );
@@ -306,39 +282,23 @@ class AppDatabase extends _$AppDatabase {
     return (delete(localSaliks)..where((t) => t.salikId.equals(id))).go();
   }
 
-  Stream<List<LocalCity>> watchCities() {
-    return (select(localCities)
-          ..orderBy([(t) => OrderingTerm.asc(t.cityName)]))
-        .watch();
+  Future<void> deleteAreaLocal(String id) {
+    return (delete(localAreas)..where((t) => t.areaId.equals(id))).go();
   }
 
-  Stream<List<LocalArea>> watchAreasByCity(String cityId) {
+  Stream<List<LocalArea>> watchAllAreas() {
     return (select(localAreas)
-          ..where((t) => t.cityId.equals(cityId))
           ..orderBy([(t) => OrderingTerm.asc(t.areaName)]))
         .watch();
-  }
-
-  Future<void> upsertCity(LocalCitiesCompanion row) {
-    return into(localCities).insertOnConflictUpdate(row);
   }
 
   Future<void> upsertArea(LocalAreasCompanion row) {
     return into(localAreas).insertOnConflictUpdate(row);
   }
 
-  Future<LocalCity?> getCityById(String id) {
-    return (select(localCities)..where((t) => t.cityId.equals(id)))
-        .getSingleOrNull();
-  }
-
   Future<LocalArea?> getAreaById(String id) {
     return (select(localAreas)..where((t) => t.areaId.equals(id)))
         .getSingleOrNull();
-  }
-
-  Future<List<LocalCity>> getAllCities() {
-    return select(localCities).get();
   }
 
   Future<List<LocalArea>> getAllAreas() {
@@ -421,7 +381,6 @@ extension LocalSalikMapper on LocalSalik {
       fatherName: fatherName,
       mobileNumber: mobileNumber,
       whatsappNumber: whatsappNumber,
-      cityId: cityId,
       areaId: areaId,
       address: address,
       genderId: genderId,
@@ -456,7 +415,6 @@ LocalSaliksCompanion salikToCompanion(Salik salik, {required String syncStatus})
     fatherName: Value(salik.fatherName),
     mobileNumber: Value(salik.mobileNumber),
     whatsappNumber: Value(salik.whatsappNumber),
-    cityId: Value(salik.cityId),
     areaId: Value(salik.areaId),
     address: Value(salik.address),
     genderId: Value(salik.genderId),
@@ -485,18 +443,9 @@ LocalSaliksCompanion salikToCompanion(Salik salik, {required String syncStatus})
   );
 }
 
-LocalCitiesCompanion cityToCompanion(City city, {String syncStatus = synced}) {
-  return LocalCitiesCompanion(
-    cityId: Value(city.cityId),
-    cityName: Value(city.cityName),
-    syncStatus: Value(syncStatus),
-  );
-}
-
 LocalAreasCompanion areaToCompanion(Area area, {String syncStatus = synced}) {
   return LocalAreasCompanion(
     areaId: Value(area.areaId),
-    cityId: Value(area.cityId),
     areaName: Value(area.areaName),
     isMajor: Value(area.isMajor),
     syncStatus: Value(syncStatus),

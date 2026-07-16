@@ -18,15 +18,15 @@ class DashboardStats {
   final int sahibMehfilCount;
 }
 
-class CitySalikCount {
-  const CitySalikCount({
-    required this.cityId,
-    required this.cityName,
+class AreaSalikCount {
+  const AreaSalikCount({
+    required this.areaId,
+    required this.areaName,
     required this.count,
   });
 
-  final String cityId;
-  final String cityName;
+  final String areaId;
+  final String areaName;
   final int count;
 }
 
@@ -45,21 +45,22 @@ final dashboardStatsProvider = Provider<DashboardStats>((ref) {
   );
 });
 
-final dashboardCityCountsProvider = Provider<List<CitySalikCount>>((ref) {
+final dashboardAreaCountsProvider = Provider<List<AreaSalikCount>>((ref) {
   final saliks = ref.watch(saliksStreamProvider).valueOrNull ?? [];
-  final cities = ref.watch(citiesProvider).valueOrNull ?? [];
+  final areas = ref.watch(areasProvider).valueOrNull ?? [];
 
   final counts = <String, int>{};
   for (final salik in saliks) {
-    counts[salik.cityId] = (counts[salik.cityId] ?? 0) + 1;
+    counts[salik.areaId] = (counts[salik.areaId] ?? 0) + 1;
   }
 
-  final result = cities
+  final result = areas
+      .where((area) => area.isMajor)
       .map(
-        (city) => CitySalikCount(
-          cityId: city.cityId,
-          cityName: city.cityName,
-          count: counts[city.cityId] ?? 0,
+        (area) => AreaSalikCount(
+          areaId: area.areaId,
+          areaName: area.areaName,
+          count: counts[area.areaId] ?? 0,
         ),
       )
       .toList()

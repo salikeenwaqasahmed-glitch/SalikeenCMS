@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/saliks/domain/entities/duplicate_salik_reason.dart';
 import '../../features/saliks/data/salik_repository.dart';
 import '../auth/local_auth_store.dart';
+import '../config/app_config.dart';
 import '../localization/app_localizations.dart';
 
 String mapFirebaseError(Object error, AppLocalizations l10n) {
@@ -22,6 +25,12 @@ String mapFirebaseError(Object error, AppLocalizations l10n) {
   }
   if (error is OfflineWrongPasswordException) {
     return l10n.t('offline_wrong_password');
+  }
+  if (error is FirebaseAuthFailedException) {
+    return l10n.t('error_firebase_auth');
+  }
+  if (error is TimeoutException) {
+    return error.message ?? l10n.t('error_network');
   }
   if (error is FirebaseAuthException) {
     switch (error.code) {
@@ -46,6 +55,9 @@ String mapFirebaseError(Object error, AppLocalizations l10n) {
   if (text.contains('permission-denied') ||
       text.contains('PERMISSION_DENIED')) {
     return l10n.t('error_permission_denied');
+  }
+  if (AppConfig.isDev) {
+    return error.toString();
   }
   return l10n.t('error_generic');
 }

@@ -128,7 +128,7 @@ class SalikDirectoryScreen extends ConsumerWidget {
                     ref.invalidate(saliksStreamProvider);
                     ref.invalidate(pendingSaliksStreamProvider);
                     ref.invalidate(pendingCountProvider);
-                    ref.invalidate(citiesProvider);
+                    ref.invalidate(areasProvider);
                   },
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(
@@ -137,13 +137,14 @@ class SalikDirectoryScreen extends ConsumerWidget {
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
                       final salik = filtered[index];
-                      final city = ref
-                              .watch(cityByIdProvider(salik.cityId))
+                      final area = ref
+                              .watch(areaByIdProvider(salik.areaId))
                               .valueOrNull ??
-                          findCity(salik.cityId);
+                          findArea(salik.areaId);
+                      final locationLabel = area?.areaName ?? salik.address.trim();
                       return SalikListTile(
                         salik: salik,
-                        cityName: city?.cityName ?? '',
+                        locationLabel: locationLabel,
                         statusBadge: salik.isPending
                             ? l10n.t('approval_pending')
                             : null,

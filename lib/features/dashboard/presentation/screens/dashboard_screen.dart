@@ -6,6 +6,7 @@ import '../../../../core/router/form_navigation.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/firebase_errors.dart';
+import '../../../../core/utils/text_field_merge.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/app_text.dart';
@@ -26,7 +27,7 @@ class DashboardScreen extends ConsumerWidget {
     final l10n = context.l10n;
     final session = ref.watch(currentSessionProvider);
     final stats = ref.watch(dashboardStatsProvider);
-    final cityCounts = ref.watch(dashboardCityCountsProvider);
+    final areaCounts = ref.watch(dashboardAreaCountsProvider);
     final saliksAsync = ref.watch(saliksStreamProvider);
     final canCreate =
         session != null && AccessControl.canCreate(session.role);
@@ -57,7 +58,7 @@ class DashboardScreen extends ConsumerWidget {
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(saliksStreamProvider);
-          ref.invalidate(citiesProvider);
+          ref.invalidate(areasProvider);
         },
         child: saliksAsync.when(
           loading: () => const AppLoadingPage(),
@@ -156,34 +157,39 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-              if (cityCounts.isNotEmpty) ...[
+              if (areaCounts.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.lg),
-                SectionTitle(l10n.t('stats_by_city')),
+                SectionTitle(l10n.t('stats_by_area')),
                 const SizedBox(height: AppSpacing.sm),
                 SizedBox(
                   height: 128,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
-                    itemCount: cityCounts.length,
+                    itemCount: areaCounts.length,
                     separatorBuilder: (_, __) =>
                         const SizedBox(width: AppSpacing.sm),
                     itemBuilder: (context, index) {
-                      final city = cityCounts[index];
-                      final label = city.cityName.trim();
+                      final area = areaCounts[index];
+                      final isUrdu =
+                          Localizations.localeOf(context).languageCode == 'ur';
+                      final label = localeBilingualLabel(
+                        area.areaName,
+                        isUrdu: isUrdu,
+                      ).trim();
                       return StatCountCard(
                         expanded: false,
                         width: 132,
                         labelMaxLines: 2,
                         labelFontSize: 12,
-                        label: label,
-                        count: city.count,
-                        icon: Icons.location_city,
+                        label: label.isNotEmpty ? label : area.areaName.trim(),
+                        count: area.count,
+                        icon: Icons.location_on,
                         colorIndex: index,
                         onTap: () => _openSaliksFiltered(
                           ref,
                           context,
                           segment: SalikBrowseSegment.area,
-                          cityId: city.cityId,
+                          areaId: area.areaId,
                         ),
                       );
                     },
@@ -233,12 +239,12 @@ class DashboardScreen extends ConsumerWidget {
     WidgetRef ref,
     BuildContext context, {
     required SalikBrowseSegment segment,
-    String cityId = 'all',
+    String areaId = 'all',
   }) {
     final notifier = ref.read(salikFilterProvider.notifier);
     notifier.setSegment(segment);
-    if (cityId != 'all') {
-      notifier.setCity(cityId);
+    if (areaId != 'all') {
+      notifier.setArea(areaId);
     }
     context.go('/saliks');
   }

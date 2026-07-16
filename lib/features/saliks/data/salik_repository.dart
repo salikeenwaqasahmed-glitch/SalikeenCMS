@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -356,10 +358,12 @@ class SalikRepository {
     final id = salik.salikId.isNotEmpty ? salik.salikId : _uuid.v4();
     final creatorName = session == null
         ? salik.addedByName
-        : await _auth.resolveUserDisplayName(
-            session.uid,
-            fallback: session.name,
-          );
+        : session.name.trim().isNotEmpty
+            ? session.name.trim()
+            : await _auth.resolveUserDisplayName(
+                session.uid,
+                fallback: session.name,
+              );
 
     final isEditor = session != null && AccessControl.isEditor(session.role);
     final saved = salik.copyWith(
@@ -673,7 +677,7 @@ class SalikRepository {
       payload: {'salikId': id},
     );
     if (await _connectivity.isOnline) {
-      await _sync.syncNow();
+      unawaited(_sync.syncNow());
     }
   }
 
@@ -772,7 +776,7 @@ class SalikRepository {
       payload: salik.toMap(),
     );
     if (await _connectivity.isOnline) {
-      await _sync.syncNow();
+      unawaited(_sync.syncNow());
     }
   }
 }

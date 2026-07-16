@@ -507,13 +507,13 @@ class SalikListTile extends StatelessWidget {
   const SalikListTile({
     required this.salik,
     required this.onProfile,
-    this.cityName = '',
+    this.locationLabel = '',
     this.statusBadge,
     super.key,
   });
 
   final Salik salik;
-  final String cityName;
+  final String locationLabel;
   final VoidCallback onProfile;
   final String? statusBadge;
 
@@ -561,7 +561,7 @@ class SalikListTile extends StatelessWidget {
                 Expanded(
                   child: _SalikCardInfo(
                     salik: salik,
-                    cityName: cityName,
+                    locationLabel: locationLabel,
                     onProfile: onProfile,
                   ),
                 ),
@@ -589,12 +589,12 @@ class SalikListTile extends StatelessWidget {
 class _SalikCardInfo extends StatelessWidget {
   const _SalikCardInfo({
     required this.salik,
-    required this.cityName,
+    required this.locationLabel,
     required this.onProfile,
   });
 
   final Salik salik;
-  final String cityName;
+  final String locationLabel;
   final VoidCallback onProfile;
 
   static const _lineStyle = TextStyle(fontSize: 13, height: 1.25);
@@ -608,7 +608,7 @@ class _SalikCardInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     final displayName = salik.name.trim();
     final displayFather = salik.fatherName.trim();
-    final displayCity = cityName.trim();
+    final displayLocation = locationLabel.trim();
 
     return InkWell(
       borderRadius: BorderRadius.circular(12),
@@ -653,10 +653,10 @@ class _SalikCardInfo extends StatelessWidget {
                     style: _lineStyle.copyWith(fontWeight: FontWeight.w500),
                   ),
                 ],
-                if (displayCity.isNotEmpty) ...[
+                if (displayLocation.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
-                    displayCity,
+                    displayLocation,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.start,

@@ -28,7 +28,6 @@ import '../../../dashboard/presentation/widgets/segment_pill_bar.dart';
 import '../../data/area_repository.dart';
 import '../../data/salik_repository.dart';
 import '../../domain/entities/area.dart';
-import '../../domain/entities/city.dart';
 import '../../domain/entities/salik.dart';
 import '../providers/area_provider.dart';
 import '../providers/salik_provider.dart';
@@ -58,10 +57,8 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
   CountryDialCode _mobileCountry = kDefaultCountry;
   CountryDialCode _whatsappCountry = kDefaultCountry;
   final _refName = TextEditingController();
-  final _citySearch = TextEditingController();
+  final _area = TextEditingController();
   final _address = TextEditingController();
-
-  String _cityId = '';
   String _gender = 'Male';
   String _dateBaith = DateTime.now().toIso8601String().split('T').first;
   String _createdDate = DateTime.now().toIso8601String().split('T').first;
@@ -122,16 +119,12 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     _mobile.dispose();
     _whatsapp.dispose();
     _refName.dispose();
-    _citySearch.dispose();
+    _area.dispose();
     _address.dispose();
     super.dispose();
   }
 
-  Future<void> _populateFromSalik(
-    Salik salik,
-    List<City> cities,
-    List<Area> areas,
-  ) async {
+  Future<void> _populateFromSalik(Salik salik) async {
     _name.text = salik.name;
     _fatherName.text = salik.fatherName;
     _detectFormLocale(salik.name, salik.fatherName);
@@ -148,15 +141,17 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
       whatsappParsed.nationalDigits,
     );
     _refName.text = salik.referenceName;
-    _cityId = salik.cityId;
     if (salik.address.trim().isNotEmpty) {
       _address.text = salik.address;
-    } else if (salik.areaId.isNotEmpty) {
+    }
+    if (salik.areaId.isNotEmpty) {
       final repo = ref.read(areaRepositoryProvider);
-      final area = findAreaInList(salik.areaId, areas) ??
-          await repo.resolveArea(salik.areaId);
+      final area = await repo.resolveArea(salik.areaId);
       if (area != null) {
-        _address.text = _localeLabel(area.areaName);
+        _area.text = _localeLabel(area.areaName);
+        if (_address.text.trim().isEmpty) {
+          _address.text = _localeLabel(area.areaName);
+        }
       }
     }
     _gender = UserSession.normalizeGender(salik.genderId);
@@ -166,16 +161,123 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     _sahibMehfil = salik.isSahibEMehfil;
     _whatsappSameAsMobile = SalikRepository.normalizePhone(salik.mobileNumber) ==
         SalikRepository.normalizePhone(salik.whatsappNumber);
-    await _syncCityLabel(cities);
   }
 
-  Future<void> _syncCityLabel(List<City> cities) async {
-    final repo = ref.read(areaRepositoryProvider);
-    final city =
-        findCityInList(_cityId, cities) ?? await repo.resolveCity(_cityId);
-    if (city != null) {
-      _citySearch.text = _localeLabel(city.cityName);
+  List<Area> _mergeAreas(List<Area>? synced) {
+    final byId = <String, Area>{};
+    for (final area in kAreas) {
+      byId[area.areaId] = area;
     }
+    for (final area in synced ?? const <Area>[]) {
+      byId[area.areaId] = area;
+    }
+    return byId.values.toList()
+      ..sort(
+        (a, b) =>
+            _localeLabel(a.areaName).compareTo(_localeLabel(b.areaName)),
+      );
+  }
+
+  Iterable<Area> _filterAreas(List<Area> areas, String query) {
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) return areas;
+
+    return areas.where((area) {
+      final full = area.areaName.toLowerCase();
+      final label = _localeLabel(area.areaName).toLowerCase();
+      return full.contains(normalized) || label.contains(normalized);
+    });
+  }
+
+  Area? _findAreaByTypedName(List<Area> areas, String typed) {
+    final normalized = typed.trim().toLowerCase();
+    if (normalized.isEmpty) return null;
+
+    for (final area in areas) {
+      if (area.areaName.trim().toLowerCase() == normalized) return area;
+      if (_localeLabel(area.areaName).trim().toLowerCase() == normalized) {
+        return area;
+      }
+    }
+    return null;
+  }
+
+  Widget _buildAreaField(List<Area> areas, AppLocalizations fl10n) {
+    final fieldWidth = MediaQuery.sizeOf(context).width - (AppSpacing.md * 2);
+
+    return Autocomplete<Area>(
+      key: ValueKey('area-${widget.salikId ?? 'new'}-$_initialized'),
+      initialValue: TextEditingValue(text: _area.text),
+      displayStringForOption: (area) => _localeLabel(area.areaName),
+      optionsBuilder: (value) => _filterAreas(areas, value.text),
+      onSelected: (area) {
+        _area.text = _localeLabel(area.areaName);
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        if (controller.text != _area.text) {
+          controller.value = controller.value.copyWith(
+            text: _area.text,
+            selection: TextSelection.collapsed(offset: _area.text.length),
+          );
+        }
+
+        return TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          onChanged: (value) => _area.text = value,
+          decoration: InputDecoration(
+            labelText: fl10n.t('area'),
+            hintText: fl10n.t('search'),
+            prefixIcon: IconColors.icon(
+              Icons.location_on,
+              size: 22,
+              colorIndex: 0,
+            ),
+            suffixIcon: IconColors.icon(Icons.search, size: 22),
+          ),
+          textDirection:
+              _isUrduForm ? TextDirection.rtl : TextDirection.ltr,
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) {
+              return fl10n.t('required_field');
+            }
+            return null;
+          },
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        if (options.isEmpty) return const SizedBox.shrink();
+
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(8),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: 240,
+                minWidth: fieldWidth,
+                maxWidth: fieldWidth,
+              ),
+              child: ListView.separated(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: options.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final area = options.elementAt(index);
+                  return ListTile(
+                    dense: true,
+                    title: Text(_localeLabel(area.areaName)),
+                    onTap: () => onSelected(area),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   bool _hasRequiredNames() {
@@ -191,7 +293,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
             ) !=
             null ||
         _dateBaith.trim().isEmpty ||
-        _cityId.isEmpty ||
+        _area.text.trim().isEmpty ||
         _address.text.trim().isEmpty) {
       return false;
     }
@@ -239,14 +341,21 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
             ? mobile
             : PhoneNumberUtils.toStored(_whatsappCountry, _whatsapp.text));
 
+    final areaRepo = ref.read(areaRepositoryProvider);
+    final mergedAreas = _mergeAreas(ref.read(areasProvider).valueOrNull);
+    final areaName = _area.text.trim();
+    final area = await areaRepo.findAreaByName(areaName) ??
+        _findAreaByTypedName(mergedAreas, areaName) ??
+        await areaRepo.createArea(name: areaName);
+    ref.invalidate(areasProvider);
+
     final salik = Salik(
       salikId: widget.salikId ?? '',
       name: _name.text.trim(),
       fatherName: _fatherName.text.trim(),
       mobileNumber: mobile,
       whatsappNumber: whatsapp,
-      cityId: _cityId,
-      areaId: '',
+      areaId: area.areaId,
       address: _address.text.trim(),
       genderId: effectiveGender,
       bazamId: '',
@@ -320,95 +429,6 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     );
   }
 
-  Future<void> _pickOrCreateCity(List<City> cities) async {
-    final fl10n = _fl10n;
-    final isUrdu = _isUrduForm;
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final controller = TextEditingController(text: _citySearch.text);
-        return AlertDialog(
-          title: Text(fl10n.t('city')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  hintText: fl10n.t('search_placeholder'),
-                ),
-                textDirection: isUrdu ? TextDirection.rtl : TextDirection.ltr,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              SizedBox(
-                height: 200,
-                width: double.maxFinite,
-                child: ListView(
-                  children: cities.map((city) {
-                    return ListTile(
-                      title: Text(_localeLabel(city.cityName)),
-                      onTap: () => Navigator.pop(ctx, 'pick:${city.cityId}'),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(fl10n.t('cancel')),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, 'new:${controller.text.trim()}'),
-              child: Text(fl10n.t('add_new_city')),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result == null || !mounted) return;
-
-    if (result.startsWith('pick:')) {
-      final id = result.substring(5);
-      final city = cities.firstWhere((c) => c.cityId == id);
-      setState(() {
-        _cityId = id;
-        _citySearch.text = _localeLabel(city.cityName);
-      });
-    } else if (result.startsWith('new:')) {
-      final name = result.substring(4);
-      if (name.isEmpty) return;
-      final existingInList = cities.cast<City?>().firstWhere(
-            (city) => city != null && cityMatchesNames(city, name: name),
-            orElse: () => null,
-          );
-      if (existingInList != null) {
-        setState(() {
-          _cityId = existingInList.cityId;
-          _citySearch.text = _localeLabel(existingInList.cityName);
-        });
-        return;
-      }
-      setState(() => _loading = true);
-      try {
-        final repo = ref.read(areaRepositoryProvider);
-        final city = await repo.createCity(name: name);
-        if (mounted) {
-          ref.invalidate(citiesProvider);
-          ref.invalidate(areasByCityProvider(city.cityId));
-          setState(() {
-            _cityId = city.cityId;
-            _citySearch.text = _localeLabel(city.cityName);
-          });
-        }
-      } finally {
-        if (mounted) setState(() => _loading = false);
-      }
-    }
-  }
-
   Widget _buildGenderField(AppLocalizations fl10n, bool canPickGender) {
     if (canPickGender) {
       return DropdownButtonFormField<String>(
@@ -451,23 +471,18 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final session = ref.watch(currentSessionProvider);
-    final citiesAsync = ref.watch(citiesProvider);
-    final cities = citiesAsync.valueOrNull ?? [];
-
-    if (!_initialized && cities.isNotEmpty && _cityId.isEmpty) {
-      _cityId = cities.first.cityId;
-      unawaited(_syncCityLabel(cities));
-    }
+    final areas = _mergeAreas(ref.watch(areasProvider).valueOrNull);
 
     if (widget.isEditing && widget.salikId != null && !_initialized) {
       final salikAsync = ref.watch(salikByIdProvider(widget.salikId!));
       salikAsync.whenData((salik) {
         if (salik != null && !_initialized) {
-          final areas = ref.read(areasByCityProvider(salik.cityId)).valueOrNull ?? [];
           unawaited(() async {
-            await _populateFromSalik(salik, cities, areas);
+            await _populateFromSalik(salik);
             if (mounted) setState(() => _initialized = true);
           }());
+        } else if (!_initialized && salik == null) {
+          if (mounted) setState(() => _initialized = true);
         }
       });
     } else if (!_initialized && session != null) {
@@ -517,7 +532,13 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                   onSelected: (i) {
                     setState(() {
                       _formLocale = i == 1 ? 'ur' : 'en';
-                      unawaited(_syncCityLabel(cities));
+                      final current = _area.text.trim();
+                      if (current.isNotEmpty) {
+                        final matched = _findAreaByTypedName(areas, current);
+                        if (matched != null) {
+                          _area.text = _localeLabel(matched.areaName);
+                        }
+                      }
                     });
                   },
                 ),
@@ -740,23 +761,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
                       InfoGroupCard(
                         title: l10n.t('location_info'),
                         children: [
-                          TextFormField(
-                            controller: _citySearch,
-                            readOnly: true,
-                            decoration: InputDecoration(
-                              labelText: fl10n.t('city'),
-                              prefixIcon: IconColors.icon(
-                                Icons.location_city,
-                                size: 22,
-                                colorIndex: 0,
-                              ),
-                              suffixIcon: IconColors.icon(Icons.arrow_drop_down, size: 22),
-                            ),
-                            validator: (_) => _cityId.isEmpty
-                                ? fl10n.t('error_select_required')
-                                : null,
-                            onTap: () => _pickOrCreateCity(cities),
-                          ),
+                          _buildAreaField(areas, fl10n),
                           const SizedBox(height: AppSpacing.sm),
                           TextFormField(
                             controller: _address,

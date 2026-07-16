@@ -9,6 +9,7 @@ import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/contact_launcher.dart';
 import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/utils/submitter_display.dart';
+import '../../../../core/utils/text_field_merge.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -43,7 +44,6 @@ class _SalikProfileScreenState extends ConsumerState<SalikProfileScreen> {
     final l10n = context.l10n;
     final session = ref.watch(currentSessionProvider);
     final salikAsync = ref.watch(salikByIdProvider(widget.salikId));
-    final cities = ref.watch(citiesProvider).valueOrNull ?? [];
 
     return PopScope(
       canPop: !_busy,
@@ -70,28 +70,35 @@ class _SalikProfileScreenState extends ConsumerState<SalikProfileScreen> {
           ) ??
               const SizedBox.shrink(),
         ],
-        body: salikAsync.when(
-          loading: () => const AppLoadingPage(),
-          error: (e, _) => ErrorState(
-            message: mapFirebaseError(e, l10n),
-            onRetry: () => ref.invalidate(salikByIdProvider(widget.salikId)),
-          ),
-          data: (salik) {
+        body: Builder(
+          builder: (_) {
+            final salik = salikAsync.valueOrNull;
             if (salik == null) {
+              if (salikAsync.isLoading) {
+                return const AppLoadingPage();
+              }
+              if (salikAsync.hasError) {
+                return ErrorState(
+                  message: mapFirebaseError(
+                    salikAsync.error ?? 'Unknown error',
+                    l10n,
+                  ),
+                  onRetry: () => ref.invalidate(salikByIdProvider(widget.salikId)),
+                );
+              }
               return EmptyState(message: l10n.t('not_found'));
             }
 
-            final city =
-                ref.watch(cityByIdProvider(salik.cityId)).valueOrNull ??
-                    findCityInList(salik.cityId, cities);
-            final area = ref.watch(areaByIdProvider(salik.areaId)).valueOrNull ??
-                findAreaInList(
-                  salik.areaId,
-                  ref.watch(areasByCityProvider(salik.cityId)).valueOrNull ?? [],
-                );
-            final displayAddress = salik.address.trim().isNotEmpty
-                ? salik.address
-                : (area?.areaName ?? '');
+            final areas = ref.watch(areasProvider).valueOrNull ?? kAreas;
+            final resolvedArea = ref.watch(areaByIdProvider(salik.areaId)).valueOrNull ??
+                findAreaInList(salik.areaId, areas);
+            final areaName = salikAreaDisplayName(
+              salik,
+              resolved: resolvedArea,
+              areas: areas,
+            );
+            final areaParts = splitBilingualLabel(areaName);
+            final addressText = salik.address.trim();
             final samePhone =
                 phonesMatch(salik.mobileNumber, salik.whatsappNumber);
 
@@ -207,18 +214,35 @@ class _SalikProfileScreenState extends ConsumerState<SalikProfileScreen> {
                         InfoGroupCard(
                           title: l10n.t('location_info'),
                           children: [
-                            InfoRow(
-                              icon: Icons.location_city,
-                              label: l10n.t('city'),
-                              value: city?.cityName ?? '',
-                              colorIndex: 0,
-                            ),
-                            InfoRow(
-                              icon: Icons.map,
-                              label: l10n.t('address'),
-                              value: displayAddress,
-                              colorIndex: 1,
-                            ),
+                            if (areaParts.english.isNotEmpty)
+                              InfoRow(
+                                icon: Icons.location_on,
+                                label: l10n.t('area_english'),
+                                value: areaParts.english,
+                                colorIndex: 0,
+                              ),
+                            if (areaParts.urdu.isNotEmpty)
+                              InfoRow(
+                                icon: Icons.location_on,
+                                label: l10n.t('area_urdu'),
+                                value: areaParts.urdu,
+                                colorIndex: areaParts.english.isEmpty ? 0 : 1,
+                              ),
+                            if (areaParts.english.isEmpty &&
+                                areaParts.urdu.isEmpty)
+                              InfoRow(
+                                icon: Icons.location_on,
+                                label: l10n.t('area'),
+                                value: '—',
+                                colorIndex: 0,
+                              ),
+                            if (addressText.isNotEmpty)
+                              InfoRow(
+                                icon: Icons.map,
+                                label: l10n.t('address'),
+                                value: addressText,
+                                colorIndex: 1,
+                              ),
                           ],
                         ),
                         const SizedBox(height: AppSpacing.sm),
@@ -516,10 +540,7 @@ class _AddedByLine extends ConsumerWidget {
           ),
         );
       },
-      loading: () => const Padding(
-        padding: EdgeInsets.only(top: AppSpacing.sm),
-        child: Center(child: AppLoader(size: AppLoaderSize.small)),
-      ),
+      loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
     );
   }

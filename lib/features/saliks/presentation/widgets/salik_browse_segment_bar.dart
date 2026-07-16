@@ -6,7 +6,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_text.dart';
 import '../../../dashboard/presentation/widgets/segment_pill_bar.dart';
-import '../../domain/entities/city.dart';
+import '../../domain/entities/area.dart';
 import '../providers/area_provider.dart';
 import '../providers/salik_provider.dart';
 
@@ -18,7 +18,7 @@ class SalikBrowseSegmentBar extends ConsumerWidget {
     final l10n = context.l10n;
     final filter = ref.watch(salikFilterProvider);
     final notifier = ref.read(salikFilterProvider.notifier);
-    final citiesAsync = ref.watch(citiesProvider);
+    final areasAsync = ref.watch(areasProvider);
 
     final segmentLabels = [
       l10n.t('segment_all'),
@@ -53,19 +53,19 @@ class SalikBrowseSegmentBar extends ConsumerWidget {
           ),
           if (filter.segment == SalikBrowseSegment.area) ...[
             const SizedBox(height: AppSpacing.sm),
-            citiesAsync.when(
+            areasAsync.when(
               loading: () => _loadingPills(),
-              error: (_, __) => _buildCityPills(
+              error: (_, __) => _buildAreaPills(
                 ref,
                 l10n,
-                kCities,
-                filter.cityId,
+                kAreas,
+                filter.areaId,
               ),
-              data: (cities) => _buildCityPills(
+              data: (areas) => _buildAreaPills(
                 ref,
                 l10n,
-                cities,
-                filter.cityId,
+                areas,
+                filter.areaId,
               ),
             ),
           ],
@@ -83,25 +83,25 @@ class SalikBrowseSegmentBar extends ConsumerWidget {
     );
   }
 
-  Widget _buildCityPills(
+  Widget _buildAreaPills(
     WidgetRef ref,
     AppLocalizations l10n,
-    List<City> cities,
-    String selectedCityId,
+    List<Area> areas,
+    String selectedAreaId,
   ) {
     final labels = <String>[
-      l10n.t('all_cities'),
-      ...cities.map((c) => c.cityName),
+      l10n.t('all_areas'),
+      ...areas.map((area) => area.areaName),
     ];
-    final values = ['all', ...cities.map((c) => c.cityId)];
+    final values = ['all', ...areas.map((area) => area.areaId)];
     final selectedIndex =
-        values.indexOf(selectedCityId).clamp(0, values.length - 1);
+        values.indexOf(selectedAreaId).clamp(0, values.length - 1);
 
     return SegmentPillBar(
       labels: labels,
       selectedIndex: selectedIndex,
       onSelected: (i) {
-        ref.read(salikFilterProvider.notifier).setCity(values[i]);
+        ref.read(salikFilterProvider.notifier).setArea(values[i]);
       },
     );
   }

@@ -6,6 +6,7 @@ import '../../../../core/utils/access_control.dart';
 import '../../data/salik_repository.dart';
 import '../../domain/entities/salik.dart';
 import '../../domain/entities/salik_duplicate_group.dart';
+import 'area_provider.dart';
 
 /// Extra client-side gender guard for genderAdmin / editor (admin = all genders).
 List<Salik> scopeSaliksToSession(List<Salik> saliks, UserSession? session) {
@@ -60,6 +61,7 @@ final salikByIdProvider =
     FutureProvider.family<Salik?, String>((ref, id) async {
   ref.watch(saliksStreamProvider);
   ref.watch(pendingSaliksStreamProvider);
+  final repo = ref.read(salikRepositoryProvider);
 
   for (final list in [
     ref.read(saliksStreamProvider).valueOrNull,
@@ -67,12 +69,14 @@ final salikByIdProvider =
   ]) {
     if (list == null) continue;
     for (final salik in list) {
-      if (salik.salikId == id) return salik;
+      if (salik.salikId == id) {
+        final resolved = await repo.resolveSalik(id);
+        return preferSalikLocationFields(salik, resolved);
+      }
     }
   }
 
-  final repo = ref.read(salikRepositoryProvider);
-  return repo.resolveSalik(id);
+  return await repo.resolveSalik(id);
 });
 
 final salikAddedByNameProvider =
@@ -86,28 +90,28 @@ final salikAddedByNameProvider =
 class SalikFilter {
   const SalikFilter({
     this.search = '',
-    this.cityId = 'all',
+    this.areaId = 'all',
     this.genderId = 'all',
     this.status = 'all',
     this.segment = SalikBrowseSegment.all,
   });
 
   final String search;
-  final String cityId;
+  final String areaId;
   final String genderId;
   final String status;
   final SalikBrowseSegment segment;
 
   SalikFilter copyWith({
     String? search,
-    String? cityId,
+    String? areaId,
     String? genderId,
     String? status,
     SalikBrowseSegment? segment,
   }) {
     return SalikFilter(
       search: search ?? this.search,
-      cityId: cityId ?? this.cityId,
+      areaId: areaId ?? this.areaId,
       genderId: genderId ?? this.genderId,
       status: status ?? this.status,
       segment: segment ?? this.segment,
@@ -125,7 +129,7 @@ class SalikFilterNotifier extends StateNotifier<SalikFilter> {
 
   void setSearch(String value) => state = state.copyWith(search: value);
 
-  void setCity(String cityId) => state = state.copyWith(cityId: cityId);
+  void setArea(String areaId) => state = state.copyWith(areaId: areaId);
 
   void setGender(String genderId) => state = state.copyWith(genderId: genderId);
 
@@ -134,7 +138,7 @@ class SalikFilterNotifier extends StateNotifier<SalikFilter> {
   void setSegment(SalikBrowseSegment segment) {
     state = state.copyWith(
       segment: segment,
-      cityId: segment == SalikBrowseSegment.area ? state.cityId : 'all',
+      areaId: segment == SalikBrowseSegment.area ? state.areaId : 'all',
     );
   }
 
@@ -151,7 +155,7 @@ List<Salik> applySalikFilters(List<Salik> saliks, SalikFilter filter) {
         s.referenceName.toLowerCase().contains(q) ||
         s.address.toLowerCase().contains(q);
 
-    final matchesCity = filter.cityId == 'all' || s.cityId == filter.cityId;
+    final matchesArea = filter.areaId == 'all' || s.areaId == filter.areaId;
     final matchesGender =
         filter.genderId == 'all' || s.genderId == filter.genderId;
 
@@ -167,7 +171,7 @@ List<Salik> applySalikFilters(List<Salik> saliks, SalikFilter filter) {
     };
 
     return matchesSearch &&
-        matchesCity &&
+        matchesArea &&
         matchesGender &&
         matchesStatus &&
         matchesSegment;
