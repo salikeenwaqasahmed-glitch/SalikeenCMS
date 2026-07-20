@@ -15,6 +15,7 @@ import '../../auth/domain/user_session.dart';
 import '../domain/entities/approval_status.dart';
 import '../domain/entities/duplicate_salik_reason.dart';
 import '../domain/entities/salik.dart';
+import '../../../core/utils/stream_debounce.dart';
 import '../domain/entities/salik_duplicate_group.dart';
 import 'duplicate_salik_logic.dart';
 import 'salik_list_streams.dart';
@@ -68,9 +69,17 @@ class SalikRepository {
     return addedByName.isNotEmpty && addedByName == session.name.trim();
   }
 
-  Stream<bool> _remoteSalikAccessStream(UserSession? session) {
-    if (session == null) return Stream.value(false);
-    return _auth.watchRemoteSalikAccess(session);
+  List<Salik> _localSaliksFromRows(
+    List<LocalSalik> localRows, {
+    required bool Function(Salik salik) include,
+  }) {
+    return mergeSalikOutbox(
+      remote: const [],
+      localRows: localRows,
+      includeRemote: include,
+      includeLocal: include,
+      includeSyncedLocal: true,
+    );
   }
 
   Stream<List<Salik>> watchEditorDirectorySaliks(UserSession session) {
@@ -79,19 +88,10 @@ class SalikRepository {
         salik.isApproved ||
         (salik.isPending && editorOwnsSalik(salik, session));
 
-    return watchMergedSaliks(
-      onlineStream: _connectivity.onlineStream,
-      remoteAccessStream: _remoteSalikAccessStream(session),
+    return watchLocalSaliks(
       localStream: _db.watchSaliks(genderFilter: gender),
-      remoteStreamFactory: () => _remoteSaliksInGender(gender),
-      merge: (remote, local, online) {
-        final saliks = mergeSalikOutbox(
-          remote: online ? remote : const [],
-          localRows: local,
-          includeRemote: include,
-          includeLocal: include,
-          includeSyncedLocal: true,
-        )
+      project: (local) {
+        final saliks = _localSaliksFromRows(local, include: include)
           ..sort((a, b) {
             if (a.isPending == b.isPending) return 0;
             return a.isPending ? -1 : 1;
@@ -109,18 +109,9 @@ class SalikRepository {
     final gender = AccessControl.genderFilter(session);
     bool include(Salik salik) => salik.isApproved;
 
-    return watchMergedSaliks(
-      onlineStream: _connectivity.onlineStream,
-      remoteAccessStream: _remoteSalikAccessStream(session),
+    return watchLocalSaliks(
       localStream: _db.watchSaliks(genderFilter: gender),
-      remoteStreamFactory: () => _remoteSaliksInGender(gender),
-      merge: (remote, local, online) => mergeSalikOutbox(
-        remote: online ? remote : const [],
-        localRows: local,
-        includeRemote: include,
-        includeLocal: include,
-        includeSyncedLocal: true,
-      ),
+      project: (local) => _localSaliksFromRows(local, include: include),
     );
   }
 
@@ -136,38 +127,20 @@ class SalikRepository {
           (salik.isPending || salik.isRejected) &&
           editorOwnsSalik(salik, session);
 
-      return watchMergedSaliks(
-        onlineStream: _connectivity.onlineStream,
-        remoteAccessStream: _remoteSalikAccessStream(session),
+      return watchLocalSaliks(
         localStream: _db.watchSaliks(genderFilter: gender),
-        remoteStreamFactory: () => _remoteSaliksInGender(gender),
-        merge: (remote, local, online) => mergeSalikOutbox(
-          remote: online ? remote : const [],
-          localRows: local,
-          includeRemote: include,
-          includeLocal: include,
-          includeSyncedLocal: true,
-        ),
+        project: (local) => _localSaliksFromRows(local, include: include),
       );
     }
 
     bool include(Salik salik) => salik.isPending;
 
-    return watchMergedSaliks(
-      onlineStream: _connectivity.onlineStream,
-      remoteAccessStream: _remoteSalikAccessStream(session),
+    return watchLocalSaliks(
       localStream: _db.watchSaliks(
         genderFilter: gender,
         approvalStatus: ApprovalStatus.pending.toFirestore(),
       ),
-      remoteStreamFactory: () => _remoteSaliksInGender(gender),
-      merge: (remote, local, online) => mergeSalikOutbox(
-        remote: online ? remote : const [],
-        localRows: local,
-        includeRemote: include,
-        includeLocal: include,
-        includeSyncedLocal: true,
-      ),
+      project: (local) => _localSaliksFromRows(local, include: include),
     );
   }
 
@@ -186,18 +159,16 @@ class SalikRepository {
 
   Future<Salik?> resolveSalik(String id) async {
     final row = await _db.getSalikById(id);
-    final local = row?.toSalik();
-    final hasPendingLocal = row != null && row.syncStatus != synced;
-
-    if (await _connectivity.isOnline &&
-        FirebaseAuth.instance.currentUser != null) {
-      final remote = await _fetchRemoteSalik(id, cache: !hasPendingLocal);
-      if (remote != null) {
-        return hasPendingLocal ? local : remote;
-      }
+    if (row != null && row.syncStatus != pendingDelete) {
+      return row.toSalik();
     }
 
-    return local;
+    if (!await _connectivity.isOnline ||
+        FirebaseAuth.instance.currentUser == null) {
+      return null;
+    }
+
+    return _fetchRemoteSalik(id, cache: true);
   }
 
   Future<({Salik salik, String syncStatus})?> resolveSalikWithStatus(
@@ -221,34 +192,6 @@ class SalikRepository {
     final remote = await _fetchRemoteSalik(id);
     if (remote == null) return null;
     return (salik: remote, syncStatus: synced);
-  }
-
-  Stream<List<Salik>> _remoteSaliksInGender(String? gender) {
-    if (FirebaseAuth.instance.currentUser == null) {
-      return Stream.value(const <Salik>[]);
-    }
-
-    Query<Map<String, dynamic>> query = _firestore.collection('saliks');
-    if (gender != null) {
-      query = query.where('genderId', isEqualTo: gender);
-    }
-    return query.snapshots().map(
-          (snapshot) => snapshot.docs
-              .map((doc) => Salik.fromMap(doc.data(), id: doc.id))
-              .toList(),
-        );
-  }
-
-  Future<List<Salik>> _fetchRemoteSaliksInGender(String? gender) async {
-    if (FirebaseAuth.instance.currentUser == null) return const [];
-    Query<Map<String, dynamic>> query = _firestore.collection('saliks');
-    if (gender != null) {
-      query = query.where('genderId', isEqualTo: gender);
-    }
-    final snapshot = await query.get();
-    return snapshot.docs
-        .map((doc) => Salik.fromMap(doc.data(), id: doc.id))
-        .toList();
   }
 
   Future<Salik?> _fetchRemoteSalik(String id, {bool cache = true}) async {
@@ -279,25 +222,16 @@ class SalikRepository {
 
   Future<List<Salik>> _approvedSaliksInScope(UserSession? session) async {
     final gender = AccessControl.genderFilter(session);
-    if (await _connectivity.isOnline) {
-      final remote = await _fetchRemoteSaliksInGender(gender);
-      final local = await _db.getAllSaliks(
-        genderFilter: gender,
-        approvalStatus: ApprovalStatus.approved.toFirestore(),
-      );
-      return mergeSalikOutbox(
-        remote: remote,
-        localRows: local,
-        includeRemote: (s) => s.isApproved,
-        includeLocal: (s) => s.isApproved,
-        includeSyncedLocal: true,
-      );
-    }
     final rows = await _db.getAllSaliks(
       genderFilter: gender,
       approvalStatus: ApprovalStatus.approved.toFirestore(),
     );
-    return rows.map((r) => r.toSalik()).toList();
+    return mergeSalikOutbox(
+      remote: const [],
+      localRows: rows,
+      includeLocal: (s) => s.isApproved,
+      includeSyncedLocal: true,
+    );
   }
 
   Future<DuplicateSalikReason?> findDuplicate({
@@ -314,14 +248,11 @@ class SalikRepository {
     final rows = approvedOnly
         ? await _approvedSaliksInScope(session)
         : mergeSalikOutbox(
-            remote: await _connectivity.isOnline
-                ? await _fetchRemoteSaliksInGender(
-                    AccessControl.genderFilter(session),
-                  )
-                : const [],
+            remote: const [],
             localRows: await _db.getAllSaliks(
               genderFilter: AccessControl.genderFilter(session),
             ),
+            includeSyncedLocal: true,
           );
     for (final salik in rows) {
       if (excludeSalikId != null && salik.salikId == excludeSalikId) continue;
@@ -677,7 +608,7 @@ class SalikRepository {
       payload: {'salikId': id},
     );
     if (await _connectivity.isOnline) {
-      unawaited(_sync.syncNow());
+      unawaited(_sync.syncPushOnly());
     }
   }
 
@@ -706,25 +637,19 @@ class SalikRepository {
     if (session == null || !AccessControl.canResolveDuplicates(session.role)) {
       return Stream.value([]);
     }
-    return watchAllSaliksInScope(session).map(findSalikDuplicateGroups);
+    return debounceStream(
+      watchAllSaliksInScope(session),
+      const Duration(milliseconds: 400),
+    ).map(findSalikDuplicateGroups);
   }
 
   Stream<List<Salik>> watchAllSaliksInScope(UserSession session) {
     final gender = AccessControl.genderFilter(session);
     bool include(Salik salik) => !salik.isRejected;
 
-    return watchMergedSaliks(
-      onlineStream: _connectivity.onlineStream,
-      remoteAccessStream: _remoteSalikAccessStream(session),
+    return watchLocalSaliks(
       localStream: _db.watchSaliks(genderFilter: gender),
-      remoteStreamFactory: () => _remoteSaliksInGender(gender),
-      merge: (remote, local, online) => mergeSalikOutbox(
-        remote: online ? remote : const [],
-        localRows: local,
-        includeRemote: include,
-        includeLocal: include,
-        includeSyncedLocal: true,
-      ),
+      project: (local) => _localSaliksFromRows(local, include: include),
     );
   }
 
@@ -776,7 +701,7 @@ class SalikRepository {
       payload: salik.toMap(),
     );
     if (await _connectivity.isOnline) {
-      unawaited(_sync.syncNow());
+      unawaited(_sync.syncPushOnly());
     }
   }
 }

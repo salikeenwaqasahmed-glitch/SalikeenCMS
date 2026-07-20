@@ -11,6 +11,8 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/salik_widgets.dart';
+import '../../../../core/sync/sync_refresh.dart';
+import '../../../../core/widgets/offline_cached_banner.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../dashboard/presentation/widgets/filter_bar.dart';
 import '../widgets/salik_browse_segment_bar.dart';
@@ -27,6 +29,8 @@ class SalikDirectoryScreen extends ConsumerWidget {
     final saliksAsync = ref.watch(saliksStreamProvider);
     final filtered = ref.watch(filteredSaliksProvider);
     final filterNotifier = ref.read(salikFilterProvider.notifier);
+    final areas = ref.watch(areasProvider).valueOrNull ?? kAreas;
+    final areaLookup = buildAreaLookup(areas);
     final canCreate =
         session != null && AccessControl.canCreate(session.role);
     final canViewPending =
@@ -102,6 +106,8 @@ class SalikDirectoryScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.sm),
           const SalikBrowseSegmentBar(),
           const SizedBox(height: AppSpacing.sm),
+          const OfflineCachedBanner(),
+          const SizedBox(height: AppSpacing.sm),
           const FilterChips(),
           const SizedBox(height: AppSpacing.sm),
           Expanded(
@@ -124,12 +130,7 @@ class SalikDirectoryScreen extends ConsumerWidget {
                   );
                 }
                 return RefreshIndicator(
-                  onRefresh: () async {
-                    ref.invalidate(saliksStreamProvider);
-                    ref.invalidate(pendingSaliksStreamProvider);
-                    ref.invalidate(pendingCountProvider);
-                    ref.invalidate(areasProvider);
-                  },
+                  onRefresh: () => pullToRefreshSync(ref, context: context),
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.md,
@@ -137,11 +138,8 @@ class SalikDirectoryScreen extends ConsumerWidget {
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
                       final salik = filtered[index];
-                      final area = ref
-                              .watch(areaByIdProvider(salik.areaId))
-                              .valueOrNull ??
-                          findArea(salik.areaId);
-                      final locationLabel = area?.areaName ?? salik.address.trim();
+                      final locationLabel =
+                          salikLocationLabel(salik, areaLookup);
                       return SalikListTile(
                         salik: salik,
                         locationLabel: locationLabel,

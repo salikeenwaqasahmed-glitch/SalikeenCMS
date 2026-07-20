@@ -12,6 +12,8 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/salik_widgets.dart';
+import '../../../../core/sync/sync_refresh.dart';
+import '../../../../core/widgets/offline_cached_banner.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/entities/approval_status.dart';
 import '../../domain/entities/salik.dart';
@@ -26,6 +28,8 @@ class PendingApprovalsScreen extends ConsumerWidget {
     final l10n = context.l10n;
     final session = ref.watch(currentSessionProvider);
     final pendingAsync = ref.watch(pendingSaliksStreamProvider);
+    final areas = ref.watch(areasProvider).valueOrNull ?? kAreas;
+    final areaLookup = buildAreaLookup(areas);
     final isEditor =
         session != null && AccessControl.isEditor(session.role);
     final title =
@@ -51,18 +55,20 @@ class PendingApprovalsScreen extends ConsumerWidget {
           }
 
           return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(pendingSaliksStreamProvider);
-              ref.invalidate(pendingCountProvider);
-            },
+            onRefresh: () => pullToRefreshSync(ref, context: context),
             child: ListView.builder(
               padding: const EdgeInsets.all(AppSpacing.md),
-              itemCount: saliks.length,
+              itemCount: saliks.length + 1,
               itemBuilder: (context, index) {
-                final salik = saliks[index];
-                final area = ref.watch(areaByIdProvider(salik.areaId)).valueOrNull ??
-                    findArea(salik.areaId);
-                final locationLabel = area?.areaName ?? salik.address.trim();
+                if (index == 0) {
+                  return const Padding(
+                    padding: EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: OfflineCachedBanner(),
+                  );
+                }
+                final salik = saliks[index - 1];
+                final locationLabel =
+                    salikLocationLabel(salik, areaLookup);
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

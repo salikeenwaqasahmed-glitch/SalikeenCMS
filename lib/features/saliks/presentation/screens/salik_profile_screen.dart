@@ -90,7 +90,8 @@ class _SalikProfileScreenState extends ConsumerState<SalikProfileScreen> {
             }
 
             final areas = ref.watch(areasProvider).valueOrNull ?? kAreas;
-            final resolvedArea = ref.watch(areaByIdProvider(salik.areaId)).valueOrNull ??
+            final areaLookup = buildAreaLookup(areas);
+            final resolvedArea = areaLookup[salik.areaId] ??
                 findAreaInList(salik.areaId, areas);
             final areaName = salikAreaDisplayName(
               salik,

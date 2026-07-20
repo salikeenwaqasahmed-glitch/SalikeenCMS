@@ -13,6 +13,8 @@ import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/app_text.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/salik_widgets.dart';
+import '../../../../core/sync/sync_refresh.dart';
+import '../../../../core/widgets/offline_cached_banner.dart';
 import '../../../auth/domain/user_session.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/salik_repository.dart';
@@ -56,16 +58,19 @@ class DuplicateSaliksScreen extends ConsumerWidget {
           }
 
           return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(duplicateSaliksStreamProvider);
-              ref.invalidate(saliksStreamProvider);
-            },
+            onRefresh: () => pullToRefreshSync(ref, context: context),
             child: ListView.builder(
               padding: const EdgeInsets.all(AppSpacing.md),
-              itemCount: groups.length,
+              itemCount: groups.length + 1,
               itemBuilder: (context, index) {
+                if (index == 0) {
+                  return const Padding(
+                    padding: EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: OfflineCachedBanner(),
+                  );
+                }
                 return _DuplicateGroupCard(
-                  group: groups[index],
+                  group: groups[index - 1],
                   session: session,
                 );
               },
@@ -212,6 +217,8 @@ class _DuplicateGroupCardState extends ConsumerState<_DuplicateGroupCard> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final areas = ref.watch(areasProvider).valueOrNull ?? kAreas;
+    final areaLookup = buildAreaLookup(areas);
     final reasons = widget.group.reasons
         .map((DuplicateSalikReason r) => _reasonLabel(l10n, r))
         .toSet()
@@ -244,9 +251,8 @@ class _DuplicateGroupCardState extends ConsumerState<_DuplicateGroupCard> {
             ),
             const SizedBox(height: AppSpacing.sm),
             ...widget.group.saliks.map((salik) {
-              final area = ref.watch(areaByIdProvider(salik.areaId)).valueOrNull ??
-                  findArea(salik.areaId);
-              final locationLabel = area?.areaName ?? salik.address.trim();
+              final locationLabel =
+                  salikLocationLabel(salik, areaLookup);
               return Column(
                 children: [
                   RadioListTile<String>(

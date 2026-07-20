@@ -7,6 +7,8 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/utils/text_field_merge.dart';
+import '../../../../core/sync/sync_refresh.dart';
+import '../../../../core/widgets/offline_cached_banner.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/app_text.dart';
@@ -14,7 +16,6 @@ import '../../../../core/widgets/section_title.dart';
 import '../../../../core/widgets/salik_widgets.dart';
 import '../../../../core/widgets/user_scope_banner.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../saliks/presentation/providers/area_provider.dart';
 import '../../../saliks/presentation/providers/salik_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../widgets/stat_count_card.dart';
@@ -56,10 +57,7 @@ class DashboardScreen extends ConsumerWidget {
             )
           : null,
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(saliksStreamProvider);
-          ref.invalidate(areasProvider);
-        },
+        onRefresh: () => pullToRefreshSync(ref, context: context),
         child: saliksAsync.when(
           loading: () => const AppLoadingPage(),
           error: (e, _) => ListView(
@@ -80,6 +78,7 @@ class DashboardScreen extends ConsumerWidget {
           data: (_) => ListView(
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
+              const OfflineCachedBanner(),
               if (session != null) ...[
                 AppText(
                   '${l10n.t('welcome')}, ${session.name}',

@@ -1,7 +1,3 @@
-import 'dart:async';
-
-import 'package:flutter/foundation.dart';
-
 import '../../../core/database/app_database.dart';
 import '../domain/entities/salik.dart';
 
@@ -44,86 +40,10 @@ List<Salik> mergeSalikOutbox({
   return byId.values.toList();
 }
 
-Stream<List<Salik>> watchMergedSaliks({
-  required Stream<bool> onlineStream,
-  required Stream<bool> remoteAccessStream,
+/// Drift-only salik list for UI — no live Firestore listener.
+Stream<List<Salik>> watchLocalSaliks({
   required Stream<List<LocalSalik>> localStream,
-  required Stream<List<Salik>> Function() remoteStreamFactory,
-  required List<Salik> Function(
-    List<Salik> remote,
-    List<LocalSalik> local,
-    bool online,
-  ) merge,
+  required List<Salik> Function(List<LocalSalik> localRows) project,
 }) {
-  late final StreamController<List<Salik>> controller;
-  StreamSubscription<List<LocalSalik>>? localSub;
-  StreamSubscription<List<Salik>>? remoteSub;
-  StreamSubscription<bool>? onlineSub;
-  StreamSubscription<bool>? remoteAccessSub;
-  var latestLocal = <LocalSalik>[];
-  var latestRemote = <Salik>[];
-  var online = true;
-  var remoteAccess = false;
-
-  void emit() {
-    if (controller.isClosed) return;
-    controller.add(merge(latestRemote, latestLocal, online));
-  }
-
-  void attachRemote() {
-    remoteSub?.cancel();
-    remoteSub = null;
-    if (!online || !remoteAccess) {
-      latestRemote = [];
-      emit();
-      return;
-    }
-    remoteSub = remoteStreamFactory().listen(
-      (remote) {
-        latestRemote = remote;
-        emit();
-      },
-      onError: (Object e, StackTrace st) {
-        debugPrint('Remote saliks stream error: $e\n$st');
-        latestRemote = const [];
-        emit();
-      },
-    );
-  }
-
-  controller = StreamController<List<Salik>>.broadcast(
-    onListen: () {
-      localSub = localStream.listen(
-        (local) {
-          latestLocal = local;
-          emit();
-        },
-        onError: controller.addError,
-      );
-      onlineSub = onlineStream.listen(
-        (value) {
-          online = value;
-          attachRemote();
-          emit();
-        },
-        onError: controller.addError,
-      );
-      remoteAccessSub = remoteAccessStream.listen(
-        (value) {
-          remoteAccess = value;
-          attachRemote();
-          emit();
-        },
-        onError: controller.addError,
-      );
-    },
-    onCancel: () async {
-      await localSub?.cancel();
-      await remoteSub?.cancel();
-      await onlineSub?.cancel();
-      await remoteAccessSub?.cancel();
-    },
-  );
-
-  return controller.stream;
+  return localStream.map(project);
 }

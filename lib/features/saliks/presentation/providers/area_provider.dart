@@ -81,3 +81,21 @@ Salik preferSalikLocationFields(Salik primary, Salik? secondary) {
 
   return primary.copyWith(areaId: areaId, address: address);
 }
+
+Map<String, Area> buildAreaLookup(List<Area>? areas) {
+  final byId = <String, Area>{};
+  for (final area in kAreas) {
+    byId[area.areaId] = area;
+  }
+  for (final area in areas ?? const <Area>[]) {
+    byId[area.areaId] = area;
+  }
+  return byId;
+}
+
+String salikLocationLabel(Salik salik, Map<String, Area> lookup) {
+  final area = lookup[salik.areaId] ?? findArea(salik.areaId);
+  final fromArea = area?.areaName.trim() ?? '';
+  if (fromArea.isNotEmpty) return fromArea;
+  return salik.address.trim();
+}

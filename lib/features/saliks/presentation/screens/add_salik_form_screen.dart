@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/data/country_codes.dart';
 import '../../../../core/data/reference_data.dart';
-import '../../../../core/sync/sync_service.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/router/form_navigation.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -106,10 +105,6 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     for (final controller in [_name, _fatherName]) {
       controller.addListener(refreshHeader);
     }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(ref.read(syncServiceProvider).syncNow());
-    });
   }
 
   @override

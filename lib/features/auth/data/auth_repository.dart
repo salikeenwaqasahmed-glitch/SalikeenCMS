@@ -770,6 +770,11 @@ class AuthRepository {
     final trimmedUid = uid.trim();
     if (trimmedUid.isEmpty) return fallback.trim();
 
+    final cached = await _localAuth.getUserByUid(trimmedUid);
+    if (cached != null && cached.name.trim().isNotEmpty) {
+      return cached.name.trim();
+    }
+
     if (trimmedUid.startsWith('local-')) {
       final email = LocalAuthStore.normalizeEmail(trimmedUid.substring(6));
       final byEmail = await _localAuth.getUserByEmail(email);
@@ -812,13 +817,8 @@ class AuthRepository {
           }
         }
       } catch (_) {
-        // Offline or rules — fall through to cache/fallback.
+        // Offline or rules — fall through to fallback.
       }
-    }
-
-    final local = await _localAuth.getUserByUid(trimmedUid);
-    if (local != null && local.name.trim().isNotEmpty) {
-      return local.name.trim();
     }
 
     return fallback.trim();

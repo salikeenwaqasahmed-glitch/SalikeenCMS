@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,14 +8,11 @@ import 'core/config/app_config.dart';
 import 'core/data/local_data_seed.dart';
 import 'core/database/app_database.dart';
 import 'core/localization/app_localizations.dart';
-import 'core/network/connectivity_service.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/sync/sync_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/app_loader.dart';
-import 'features/auth/data/auth_repository.dart';
-import 'features/auth/domain/user_session.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'firebase_options.dart';
 
@@ -51,7 +46,6 @@ class SalikManagementApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(syncBootstrapProvider);
-    ref.watch(appDatabaseHydrationProvider);
 
     final router = ref.watch(appRouterProvider);
     final themeMode = ref.watch(themeModeProvider);
@@ -135,49 +129,3 @@ class AuthLoadingGate extends ConsumerWidget {
     );
   }
 }
-
-final appDatabaseHydrationProvider = Provider<void>((ref) {
-  Future<void> syncWhenOnline({UserSession? session}) async {
-    if (ref.read(postLoginSyncInFlightProvider)) return;
-    if (ref.read(authRepositoryProvider).isLoginAttemptInProgress) return;
-
-    try {
-      final online = await ref.read(connectivityServiceProvider).isOnline;
-      if (!online) return;
-
-      final authRepo = ref.read(authRepositoryProvider);
-      if (await authRepo.hasPersistedLoginIntent()) {
-        await authRepo.promoteOfflineSessionIfOnline();
-      }
-
-      final active = session ?? ref.read(authStateProvider).valueOrNull;
-      if (active == null) return;
-
-      final sync = ref.read(syncServiceProvider);
-      await sync.hydrate(active);
-      await sync.repairSyncQueue();
-      await sync.syncNow(sessionOverride: active);
-    } catch (e, st) {
-      debugPrint('Bootstrap sync failed: $e\n$st');
-    }
-  }
-
-  ref.listen(authStateProvider, (prev, next) {
-    if (ref.read(postLoginSyncInFlightProvider)) return;
-    final session = next.valueOrNull;
-    if (session == null) return;
-    if (prev?.valueOrNull?.uid == session.uid) return;
-    unawaited(syncWhenOnline(session: session));
-  });
-
-  ref.listen(connectivityStatusProvider, (prev, next) {
-    if (ref.read(postLoginSyncInFlightProvider)) return;
-    final online = next.valueOrNull ?? false;
-    final wasOnline = prev?.valueOrNull ?? false;
-    if (online && !wasOnline) {
-      unawaited(syncWhenOnline());
-    }
-  });
-
-  unawaited(syncWhenOnline());
-});

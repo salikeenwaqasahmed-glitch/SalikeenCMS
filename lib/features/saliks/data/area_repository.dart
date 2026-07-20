@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -15,7 +14,6 @@ final areaRepositoryProvider = Provider<AreaRepository>((ref) {
     ref.watch(appDatabaseProvider),
     ref.watch(connectivityServiceProvider),
     ref.watch(syncServiceProvider),
-    FirebaseFirestore.instance,
   );
 });
 
@@ -24,13 +22,11 @@ class AreaRepository {
     this._db,
     this._connectivity,
     this._sync,
-    this._firestore,
   );
 
   final AppDatabase _db;
   final ConnectivityService _connectivity;
   final SyncService _sync;
-  final FirebaseFirestore _firestore;
   final _uuid = const Uuid();
 
   Stream<List<Area>> watchAreas() {
@@ -67,20 +63,7 @@ class AreaRepository {
       );
     }
 
-    return _fetchRemoteArea(areaId);
-  }
-
-  Future<Area?> _fetchRemoteArea(String areaId) async {
-    if (!await _connectivity.isOnline) return null;
-    try {
-      final snap = await _firestore.collection('areas').doc(areaId).get();
-      if (!snap.exists || snap.data() == null) return null;
-      final area = Area.fromMap(snap.data()!, id: areaId);
-      await _db.upsertArea(areaToCompanion(area, syncStatus: synced));
-      return area;
-    } catch (_) {
-      return null;
-    }
+    return null;
   }
 
   Future<List<Area>> _allAreasLocal() async {
@@ -129,7 +112,7 @@ class AreaRepository {
       payload: area.toMap(),
     );
     if (await _connectivity.isOnline) {
-      unawaited(_sync.syncNow());
+      unawaited(_sync.syncPushOnly());
     }
     return area;
   }

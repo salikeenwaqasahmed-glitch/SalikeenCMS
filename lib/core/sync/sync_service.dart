@@ -66,19 +66,6 @@ class SyncService {
   void start(Ref ref) {
     _ref = ref;
     unawaited(_purgeLocalStaleQueue());
-    _connectivitySub?.cancel();
-    _connectivitySub = _connectivity.onlineStream.listen((online) {
-      if (online) {
-        unawaited(_purgeLocalStaleQueue());
-        unawaited(syncNow());
-      }
-    });
-    unawaited(_connectivity.isOnline.then((online) {
-      if (online) {
-        unawaited(_purgeLocalStaleQueue());
-        unawaited(syncNow());
-      }
-    }));
   }
 
   void dispose() {
@@ -91,6 +78,65 @@ class SyncService {
     if (!await _connectivity.isOnline) return;
     await _adoptRemoteApprovalAhead();
     await _finalizeSyncQueue();
+  }
+
+  Future<bool> syncPushOnly({UserSession? sessionOverride}) async {
+    if (_syncing) return false;
+    if (!await _connectivity.isOnline) return false;
+
+    _syncing = true;
+    lastSyncError = null;
+    try {
+      await _syncPhase('purgeLocalStaleQueue', _purgeLocalStaleQueue);
+      await _syncPhase(
+        'promoteOfflineSession',
+        _authRepo.promoteOfflineSessionIfOnline,
+      );
+
+      final sessionHint = sessionOverride ?? await _currentSession();
+      if (sessionHint == null) {
+        lastSyncError = 'ensureUserProfile: no local session';
+        return false;
+      }
+
+      final authed = await _syncPhase(
+        'refreshFirebaseAuth',
+        () => _localAuth.refreshFirebaseAuth(
+          _auth,
+          preferredEmail: sessionHint.email,
+        ),
+      );
+      if (!authed) {
+        lastSyncError = 'refreshFirebaseAuth: Firebase login failed';
+        debugPrint('Push sync skipped: Firebase Auth not available');
+        return false;
+      }
+
+      final session = await _syncPhase(
+        'ensureUserProfile',
+        () => _ensureUserProfile(sessionHint),
+      );
+      if (session == null) {
+        lastSyncError ??= 'ensureUserProfile: users/{uid} profile missing';
+        return false;
+      }
+
+      await _syncPhase('adoptRemoteApprovalAhead', _adoptRemoteApprovalAhead);
+      await _syncPhase('pushQueue', () => _pushQueue(session));
+      await _syncPhase('finalizeSyncQueue', _finalizeSyncQueue);
+      final remaining = await _db.pendingSyncCount();
+      if (remaining > 0) {
+        lastSyncError = 'syncQueue: $remaining item(s) still pending';
+      }
+      return remaining == 0;
+    } catch (e, st) {
+      lastSyncError ??= e.toString();
+      debugPrint('Push sync failed: $e\n$st');
+      return false;
+    } finally {
+      await _purgeLocalStaleQueue();
+      _syncing = false;
+    }
   }
 
   Future<bool> syncNow({UserSession? sessionOverride}) async {

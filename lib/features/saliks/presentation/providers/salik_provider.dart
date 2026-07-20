@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../../auth/domain/user_session.dart';
@@ -127,7 +129,22 @@ final salikFilterProvider =
 class SalikFilterNotifier extends StateNotifier<SalikFilter> {
   SalikFilterNotifier() : super(const SalikFilter());
 
-  void setSearch(String value) => state = state.copyWith(search: value);
+  Timer? _searchDebounce;
+
+  static const _searchDebounceDuration = Duration(milliseconds: 250);
+
+  void setSearch(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(_searchDebounceDuration, () {
+      state = state.copyWith(search: value);
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
 
   void setArea(String areaId) => state = state.copyWith(areaId: areaId);
 
