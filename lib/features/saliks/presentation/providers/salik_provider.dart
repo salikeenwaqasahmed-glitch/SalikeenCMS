@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../../auth/domain/user_session.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/utils/access_control.dart';
+import '../../../../core/utils/text_field_merge.dart';
 import '../../data/salik_repository.dart';
 import '../../domain/entities/salik.dart';
 import '../../domain/entities/salik_duplicate_group.dart';
@@ -18,6 +20,8 @@ List<Salik> scopeSaliksToSession(List<Salik> saliks, UserSession? session) {
 }
 
 enum SalikBrowseSegment { all, area, nafiAsbat, sahibMehfil }
+
+const kSaliksPageSize = 20;
 
 final duplicateSaliksStreamProvider =
     StreamProvider<List<SalikDuplicateGroup>>((ref) {
@@ -123,20 +127,26 @@ class SalikFilter {
 
 final salikFilterProvider =
     StateNotifierProvider<SalikFilterNotifier, SalikFilter>((ref) {
-  return SalikFilterNotifier();
+  return SalikFilterNotifier(ref);
 });
 
 class SalikFilterNotifier extends StateNotifier<SalikFilter> {
-  SalikFilterNotifier() : super(const SalikFilter());
+  SalikFilterNotifier(this._ref) : super(const SalikFilter());
 
+  final Ref _ref;
   Timer? _searchDebounce;
 
   static const _searchDebounceDuration = Duration(milliseconds: 250);
+
+  void _resetPage() {
+    _ref.read(salikListPageProvider.notifier).state = 0;
+  }
 
   void setSearch(String value) {
     _searchDebounce?.cancel();
     _searchDebounce = Timer(_searchDebounceDuration, () {
       state = state.copyWith(search: value);
+      _resetPage();
     });
   }
 
@@ -146,57 +156,171 @@ class SalikFilterNotifier extends StateNotifier<SalikFilter> {
     super.dispose();
   }
 
-  void setArea(String areaId) => state = state.copyWith(areaId: areaId);
+  void setArea(String areaId) {
+    state = state.copyWith(areaId: areaId);
+    _resetPage();
+  }
 
-  void setGender(String genderId) => state = state.copyWith(genderId: genderId);
+  void setGender(String genderId) {
+    state = state.copyWith(genderId: genderId);
+    _resetPage();
+  }
 
-  void setStatus(String status) => state = state.copyWith(status: status);
+  void setStatus(String status) {
+    state = state.copyWith(status: status);
+    _resetPage();
+  }
 
   void setSegment(SalikBrowseSegment segment) {
     state = state.copyWith(
       segment: segment,
       areaId: segment == SalikBrowseSegment.area ? state.areaId : 'all',
     );
+    _resetPage();
   }
 
-  void reset() => state = const SalikFilter();
+  void reset() {
+    state = const SalikFilter();
+    _resetPage();
+  }
 }
 
-List<Salik> applySalikFilters(List<Salik> saliks, SalikFilter filter) {
-  return saliks.where((s) {
-    final q = filter.search.trim().toLowerCase();
-    final matchesSearch = q.isEmpty ||
-        s.name.toLowerCase().contains(q) ||
-        s.fatherName.toLowerCase().contains(q) ||
-        s.mobileNumber.contains(filter.search) ||
-        s.referenceName.toLowerCase().contains(q) ||
-        s.address.toLowerCase().contains(q);
-
-    final matchesArea = filter.areaId == 'all' || s.areaId == filter.areaId;
-    final matchesGender =
-        filter.genderId == 'all' || s.genderId == filter.genderId;
-
-    var matchesStatus = true;
-    if (filter.status == 'active') matchesStatus = s.isActive;
-    if (filter.status == 'inactive') matchesStatus = !s.isActive;
-
-    final matchesSegment = switch (filter.segment) {
-      SalikBrowseSegment.all => true,
-      SalikBrowseSegment.area => true,
-      SalikBrowseSegment.nafiAsbat => s.isNafiAsbat,
-      SalikBrowseSegment.sahibMehfil => s.isSahibEMehfil,
-    };
-
-    return matchesSearch &&
-        matchesArea &&
-        matchesGender &&
-        matchesStatus &&
-        matchesSegment;
-  }).toList();
+String _sortKeyForName(String value, {required bool isUrdu}) {
+  final label = localeBilingualLabel(value, isUrdu: isUrdu).trim();
+  if (label.isNotEmpty) return label.toLowerCase();
+  return value.trim().toLowerCase();
 }
 
-final filteredSaliksProvider = Provider<List<Salik>>((ref) {
+int compareSaliksByLocaleName(Salik a, Salik b, {required bool isUrdu}) {
+  final nameCmp = _sortKeyForName(a.name, isUrdu: isUrdu)
+      .compareTo(_sortKeyForName(b.name, isUrdu: isUrdu));
+  if (nameCmp != 0) return nameCmp;
+
+  final fatherCmp = _sortKeyForName(a.fatherName, isUrdu: isUrdu)
+      .compareTo(_sortKeyForName(b.fatherName, isUrdu: isUrdu));
+  if (fatherCmp != 0) return fatherCmp;
+
+  return a.createdDate.compareTo(b.createdDate);
+}
+
+void sortSaliksByLocale(List<Salik> saliks, {required bool isUrdu}) {
+  saliks.sort((a, b) {
+    if (a.isPending != b.isPending) {
+      return a.isPending ? -1 : 1;
+    }
+    return compareSaliksByLocaleName(a, b, isUrdu: isUrdu);
+  });
+}
+
+bool _matchesNonSearchFilters(Salik s, SalikFilter filter) {
+  final matchesArea = filter.areaId == 'all' || s.areaId == filter.areaId;
+  final matchesGender =
+      filter.genderId == 'all' || s.genderId == filter.genderId;
+
+  var matchesStatus = true;
+  if (filter.status == 'active') matchesStatus = s.isActive;
+  if (filter.status == 'inactive') matchesStatus = !s.isActive;
+
+  final matchesSegment = switch (filter.segment) {
+    SalikBrowseSegment.all => true,
+    SalikBrowseSegment.area => true,
+    SalikBrowseSegment.nafiAsbat => s.isNafiAsbat,
+    SalikBrowseSegment.sahibMehfil => s.isSahibEMehfil,
+  };
+
+  return matchesArea && matchesGender && matchesStatus && matchesSegment;
+}
+
+int? _searchTier(Salik s, String q, String rawSearch) {
+  final nameHit = s.name.toLowerCase().contains(q) ||
+      s.fatherName.toLowerCase().contains(q);
+  if (nameHit) return 1;
+
+  if (s.referenceName.toLowerCase().contains(q)) return 2;
+
+  if (s.mobileNumber.contains(rawSearch) ||
+      s.address.toLowerCase().contains(q)) {
+    return 3;
+  }
+  return null;
+}
+
+/// Filters + ranks search (name/father → reference → mobile/address) + locale sort.
+List<Salik> applySalikFilters(
+  List<Salik> saliks,
+  SalikFilter filter, {
+  bool isUrdu = false,
+}) {
+  final scoped = saliks.where((s) => _matchesNonSearchFilters(s, filter));
+  final q = filter.search.trim().toLowerCase();
+  final rawSearch = filter.search.trim();
+
+  if (q.isEmpty) {
+    final list = scoped.toList();
+    sortSaliksByLocale(list, isUrdu: isUrdu);
+    return list;
+  }
+
+  final tier1 = <Salik>[];
+  final tier2 = <Salik>[];
+  final tier3 = <Salik>[];
+
+  for (final s in scoped) {
+    final tier = _searchTier(s, q, rawSearch);
+    if (tier == 1) {
+      tier1.add(s);
+    } else if (tier == 2) {
+      tier2.add(s);
+    } else if (tier == 3) {
+      tier3.add(s);
+    }
+  }
+
+  sortSaliksByLocale(tier1, isUrdu: isUrdu);
+  sortSaliksByLocale(tier2, isUrdu: isUrdu);
+  sortSaliksByLocale(tier3, isUrdu: isUrdu);
+  return [...tier1, ...tier2, ...tier3];
+}
+
+List<Salik> pageSaliks(List<Salik> saliks, int page, {int pageSize = kSaliksPageSize}) {
+  if (saliks.isEmpty || pageSize <= 0) return const [];
+  final start = page * pageSize;
+  if (start >= saliks.length) return const [];
+  final end = (start + pageSize).clamp(0, saliks.length);
+  return saliks.sublist(start, end);
+}
+
+int salikPageCount(int total, {int pageSize = kSaliksPageSize}) {
+  if (total <= 0 || pageSize <= 0) return 1;
+  return ((total + pageSize - 1) / pageSize).floor();
+}
+
+final salikListPageProvider = StateProvider<int>((ref) => 0);
+
+final sortedFilteredSaliksProvider = Provider<List<Salik>>((ref) {
   final saliks = ref.watch(saliksStreamProvider).valueOrNull ?? [];
   final filter = ref.watch(salikFilterProvider);
-  return applySalikFilters(saliks, filter);
+  final isUrdu = ref.watch(appLocalizationsProvider).isUrdu;
+  return applySalikFilters(saliks, filter, isUrdu: isUrdu);
+});
+
+/// Alias kept for existing call sites; now sorted + ranked.
+final filteredSaliksProvider = sortedFilteredSaliksProvider;
+
+final salikListPageCountProvider = Provider<int>((ref) {
+  final total = ref.watch(sortedFilteredSaliksProvider).length;
+  return salikPageCount(total);
+});
+
+final pagedSaliksProvider = Provider<List<Salik>>((ref) {
+  final sorted = ref.watch(sortedFilteredSaliksProvider);
+  final page = ref.watch(salikListPageProvider);
+  final pageCount = salikPageCount(sorted.length);
+  final safePage = page.clamp(0, pageCount - 1);
+  if (safePage != page) {
+    Future.microtask(() {
+      ref.read(salikListPageProvider.notifier).state = safePage;
+    });
+  }
+  return pageSaliks(sorted, safePage);
 });

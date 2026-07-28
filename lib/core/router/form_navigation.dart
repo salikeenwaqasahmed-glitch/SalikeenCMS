@@ -13,8 +13,21 @@ FormReturnRoute parseFormReturn(String? from) {
   }
 }
 
-String addSalikRoute({FormReturnRoute from = FormReturnRoute.saliks}) =>
-    '/saliks/add?from=${from.name}';
+String addSalikRoute({
+  FormReturnRoute from = FormReturnRoute.saliks,
+  String? name,
+  String? mobile,
+}) {
+  final params = <String, String>{'from': from.name};
+  final trimmedName = name?.trim() ?? '';
+  final trimmedMobile = mobile?.trim() ?? '';
+  if (trimmedName.isNotEmpty) params['name'] = trimmedName;
+  if (trimmedMobile.isNotEmpty) params['mobile'] = trimmedMobile;
+  final query = params.entries
+      .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+      .join('&');
+  return '/saliks/add?$query';
+}
 
 String editSalikRoute(String id, {FormReturnRoute from = FormReturnRoute.saliks}) =>
     '/saliks/edit/$id?from=${from.name}';

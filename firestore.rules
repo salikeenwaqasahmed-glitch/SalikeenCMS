@@ -22,7 +22,7 @@ rules_version = '2';
 //
 // Roles (users/{uid}.role): admin | approval | editor | crudUser (legacy → editor)
 // Salik fields: approvalStatus pending|approved|rejected, approvedByUid/Name/At on decision
-// Location: areaId + address (free text max 50)
+// Location: areaId + address (plain max 50, or client AES enc:v1: ciphertext)
 //
 // Deploy: firebase deploy --only firestore:rules
 service cloud.firestore {
@@ -89,14 +89,28 @@ service cloud.firestore {
         || (data[key] is string && data[key].size() <= maxLen);
     }
 
-    // Saliks: non-empty areaId + address (max 50 chars).
+    // Plaintext address max 50; encrypted PII uses enc:v1: prefix (longer).
+    function isEncryptedField(value) {
+      return value is string
+        && value.size() >= 8
+        && value.matches('enc:v1:.+');
+    }
+
+    function validPlainOrEncryptedAddress(address) {
+      return address is string
+        && address.size() > 0
+        && (
+          address.size() <= 50
+          || (isEncryptedField(address) && address.size() <= 512)
+        );
+    }
+
+    // Saliks: non-empty areaId + address (plain ≤50 or enc:v1 ciphertext).
     function validSalikLocation(data) {
       return data.areaId is string
         && data.areaId.size() > 0
         && data.areaId.size() <= 128
-        && data.address is string
-        && data.address.size() > 0
-        && data.address.size() <= 50;
+        && validPlainOrEncryptedAddress(data.address);
     }
 
     // Read: admin = all genders; approval/editor = own gender (incl. pending queue).
@@ -317,6 +331,11 @@ service cloud.firestore {
         || isSelfDemoProfileRepair(userId)
       );
       allow delete: if signedIn() && isAdmin();
+
+      // Per-user field encryption key backup (own uid only).
+      match /private/{docId} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
     }
 
     match /saliks/{salikId} {

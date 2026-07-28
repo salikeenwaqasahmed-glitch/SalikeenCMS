@@ -509,6 +509,8 @@ class SalikListTile extends StatelessWidget {
     required this.onProfile,
     this.locationLabel = '',
     this.statusBadge,
+    this.selected,
+    this.onSelectedChanged,
     super.key,
   });
 
@@ -516,6 +518,12 @@ class SalikListTile extends StatelessWidget {
   final String locationLabel;
   final VoidCallback onProfile;
   final String? statusBadge;
+
+  /// When non-null, tile is in multi-select mode.
+  final bool? selected;
+  final ValueChanged<bool>? onSelectedChanged;
+
+  bool get _selecting => selected != null;
 
   @override
   Widget build(BuildContext context) {
@@ -543,44 +551,63 @@ class SalikListTile extends StatelessWidget {
       ));
     }
 
+    void toggle() {
+      if (!_selecting || onSelectedChanged == null) return;
+      onSelectedChanged!(!selected!);
+    }
+
     return Card(
       margin: const EdgeInsetsDirectional.only(bottom: AppSpacing.sm),
       clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.sm,
-              AppSpacing.sm,
-              40,
-              AppSpacing.sm,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: _SalikCardInfo(
-                    salik: salik,
-                    locationLabel: locationLabel,
-                    onProfile: onProfile,
+      child: InkWell(
+        onTap: _selecting ? toggle : null,
+        child: Stack(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                AppSpacing.sm,
+                _selecting ? AppSpacing.sm : 40,
+                AppSpacing.sm,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (_selecting) ...[
+                    Checkbox(
+                      value: selected,
+                      onChanged: (v) {
+                        if (v == null) return;
+                        onSelectedChanged?.call(v);
+                      },
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                  ],
+                  Expanded(
+                    child: _SalikCardInfo(
+                      salik: salik,
+                      locationLabel: locationLabel,
+                      onProfile: _selecting ? toggle : onProfile,
+                    ),
                   ),
-                ),
-                if (badges.isNotEmpty) ...[
-                  const SizedBox(width: AppSpacing.xs),
-                  _SalikCardBadges(badges: badges),
+                  if (badges.isNotEmpty) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    _SalikCardBadges(badges: badges),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          Positioned(
-            top: 4,
-            right: 4,
-            child: SalikCardContactButton(
-              mobileNumber: salik.mobileNumber,
-              whatsappNumber: salik.whatsappNumber,
-            ),
-          ),
-        ],
+            if (!_selecting)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: SalikCardContactButton(
+                  mobileNumber: salik.mobileNumber,
+                  whatsappNumber: salik.whatsappNumber,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

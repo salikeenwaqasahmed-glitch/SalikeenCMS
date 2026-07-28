@@ -14,7 +14,18 @@ void main() {
     test('builds a WhatsApp web URI for existing international numbers', () {
       final uri = ContactLauncher.whatsappMessageUri('+14155552671');
 
-      expect(uri.toString(), 'https://wa.me/%2B14155552671');
+      expect(uri.scheme, 'https');
+      expect(uri.host, 'wa.me');
+      expect(uri.path, '/14155552671');
+    });
+
+    test('includes optional WhatsApp message text', () {
+      final uri = ContactLauncher.whatsappMessageUri(
+        '+14155552671',
+        text: 'Hello',
+      );
+
+      expect(uri.queryParameters['text'], 'Hello');
     });
   });
 }

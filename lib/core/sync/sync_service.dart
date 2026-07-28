@@ -13,6 +13,7 @@ import '../../features/saliks/domain/entities/approval_status.dart';
 import '../../features/saliks/domain/entities/salik.dart';
 import '../auth/local_user_seed.dart';
 import '../auth/local_auth_store.dart';
+import '../crypto/field_crypto_key_store.dart';
 import '../data/reference_data.dart';
 import '../database/app_database.dart';
 import '../network/connectivity_service.dart';
@@ -25,6 +26,7 @@ final syncServiceProvider = Provider<SyncService>((ref) {
     ref.watch(connectivityServiceProvider),
     ref.watch(localAuthStoreProvider),
     ref.watch(authRepositoryProvider),
+    ref.watch(fieldCryptoKeyStoreProvider),
     FirebaseFirestore.instance,
     FirebaseAuth.instance,
   );
@@ -47,6 +49,7 @@ class SyncService {
     this._connectivity,
     this._localAuth,
     this._authRepo,
+    this._keyStore,
     this._firestore,
     this._auth,
   );
@@ -55,6 +58,7 @@ class SyncService {
   final ConnectivityService _connectivity;
   final LocalAuthStore _localAuth;
   final AuthRepository _authRepo;
+  final FieldCryptoKeyStore _keyStore;
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
 
@@ -121,6 +125,7 @@ class SyncService {
         return false;
       }
 
+      await _syncPhase('ensureFieldCrypto', () => _keyStore.ensureKey(session));
       await _syncPhase('adoptRemoteApprovalAhead', _adoptRemoteApprovalAhead);
       await _syncPhase('pushQueue', () => _pushQueue(session));
       await _syncPhase('finalizeSyncQueue', _finalizeSyncQueue);
@@ -177,6 +182,7 @@ class SyncService {
         return false;
       }
 
+      await _syncPhase('ensureFieldCrypto', () => _keyStore.ensureKey(session));
       await _syncPhase('adoptRemoteApprovalAhead', _adoptRemoteApprovalAhead);
       await _syncPhase('pushQueue', () => _pushQueue(session));
       await _syncPhase('finalizeSyncQueue', _finalizeSyncQueue);
@@ -218,6 +224,7 @@ class SyncService {
     }
     final resolved = await _ensureUserProfile(session);
     if (resolved == null) return;
+    await _keyStore.ensureKey(resolved);
     await _adoptRemoteApprovalAhead();
     await _pushQueue(resolved);
     await _finalizeSyncQueue();
@@ -347,7 +354,7 @@ class SyncService {
       final snap = await _firestore.collection('saliks').doc(salikId).get();
       if (!snap.exists) return false;
 
-      final server = Salik.fromMap(snap.data()!, id: salikId);
+      final server = _salikFromFirestoreMap(snap.data()!, id: salikId);
       if (server.isPending) return false;
 
       await _db.upsertSalik(
@@ -491,7 +498,7 @@ class SyncService {
         if (!verify.exists) {
           return 'Salik missing on server after save';
         }
-        final server = Salik.fromMap(verify.data()!, id: salik.salikId);
+        final server = _salikFromFirestoreMap(verify.data()!, id: salik.salikId);
         if (server.approvalStatus != salik.approvalStatus) {
           if (attempt < 2) continue;
           final uid = _auth.currentUser?.uid ?? '';
@@ -532,6 +539,8 @@ class SyncService {
       return 'Firestore users/{uid} profile missing — sign in online once';
     }
 
+    await _keyStore.ensureKey(session);
+
     final authUid = _auth.currentUser?.uid;
     if (authUid == null || authUid.isEmpty) {
       return 'Firebase Auth session missing';
@@ -551,7 +560,7 @@ class SyncService {
         if (!existing.exists) {
           await ref.set(_salikPayloadForPush(salik));
         } else {
-          final server = Salik.fromMap(existing.data()!, id: salik.salikId);
+          final server = _salikFromFirestoreMap(existing.data()!, id: salik.salikId);
           if (server.isPending) {
             await _writeApprovalToServer(ref, salik, authUid);
           } else if (server.approvalStatus != salik.approvalStatus) {
@@ -572,7 +581,7 @@ class SyncService {
         if (!verify.exists) {
           return 'Salik missing on server after save';
         }
-        final server = Salik.fromMap(verify.data()!, id: salik.salikId);
+        final server = _salikFromFirestoreMap(verify.data()!, id: salik.salikId);
         if (server.approvalStatus != ApprovalStatus.pending) {
           return 'Server status ${server.approvalStatus.toFirestore()} — expected pending';
         }
@@ -671,8 +680,17 @@ class SyncService {
         pushSalik = salik.copyWith(approvedByUid: authUid);
       }
     }
-    return Map<String, dynamic>.from(pushSalik.toMap())
+    final map = Map<String, dynamic>.from(pushSalik.toMap())
       ..removeWhere((_, value) => value == null);
+    final crypto = _keyStore.current;
+    if (crypto == null) return map;
+    return crypto.encryptSalikMap(map);
+  }
+
+  Salik _salikFromFirestoreMap(Map<String, dynamic> data, {required String id}) {
+    final crypto = _keyStore.current;
+    final map = crypto == null ? data : crypto.decryptSalikMap(data);
+    return Salik.fromMap(map, id: id);
   }
 
   Map<String, dynamic> _stripLegacyCityField(Map<String, dynamic> payload) {
@@ -694,7 +712,7 @@ class SyncService {
       case 'create':
         final existing = await ref.get();
         if (existing.exists) {
-          final server = Salik.fromMap(existing.data()!, id: docId);
+          final server = _salikFromFirestoreMap(existing.data()!, id: docId);
           if (server.isPending) {
             await _cacheSalik(server);
             return;
@@ -707,12 +725,12 @@ class SyncService {
           );
         }
         await ref.set(clean);
-        await _cacheSalik(Salik.fromMap(clean, id: docId));
+        await _cacheSalik(_salikFromFirestoreMap(clean, id: docId));
       case 'update':
         final exists = await ref.get();
         if (exists.exists) {
-          final server = Salik.fromMap(exists.data()!, id: docId);
-          final incoming = Salik.fromMap(clean, id: docId);
+          final server = _salikFromFirestoreMap(exists.data()!, id: docId);
+          final incoming = _salikFromFirestoreMap(clean, id: docId);
           final authUid = _auth.currentUser?.uid ?? '';
           if (server.isPending &&
               !incoming.isPending &&
@@ -724,7 +742,7 @@ class SyncService {
         } else {
           await ref.set(clean);
         }
-        await _cacheSalik(Salik.fromMap(clean, id: docId));
+        await _cacheSalik(_salikFromFirestoreMap(clean, id: docId));
       case 'delete':
         await ref.delete();
         await _db.deleteSalikLocal(docId);
@@ -779,7 +797,7 @@ class SyncService {
     final serverIds = <String>{};
     for (final doc in snapshot.docs) {
       serverIds.add(doc.id);
-      final serverSalik = Salik.fromMap(doc.data(), id: doc.id);
+      final serverSalik = _salikFromFirestoreMap(doc.data(), id: doc.id);
       await _mergeSalikFromServer(serverSalik);
     }
     await _pruneStaleSalikCache(serverIds, gender);
@@ -869,7 +887,7 @@ class SyncService {
       final snap = await _firestore.collection('saliks').doc(item.docId).get();
       if (!snap.exists) return;
 
-      final server = Salik.fromMap(snap.data()!, id: item.docId);
+      final server = _salikFromFirestoreMap(snap.data()!, id: item.docId);
       final localSalik = local.toSalik();
 
       // Local approve/reject ahead of stale server pending — keep local, retry push.

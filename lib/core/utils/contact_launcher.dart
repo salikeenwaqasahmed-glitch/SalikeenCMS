@@ -21,10 +21,14 @@ class ContactLauncher {
     return normalized.startsWith('+') ? normalized : '+$normalized';
   }
 
-  static Uri whatsappMessageUri(String phone) {
+  static Uri whatsappMessageUri(String phone, {String? text}) {
     final normalized = _normalizeForWhatsApp(phone);
     if (normalized.isEmpty) return Uri.parse('https://wa.me/');
-    return Uri.parse('https://wa.me/${Uri.encodeComponent(normalized)}');
+    final digits = normalized.replaceAll('+', '');
+    final params = <String, String>{};
+    final body = text?.trim() ?? '';
+    if (body.isNotEmpty) params['text'] = body;
+    return Uri.https('wa.me', '/$digits', params.isEmpty ? null : params);
   }
 
   static Uri whatsappCallUri(String phone) {
@@ -46,15 +50,23 @@ class ContactLauncher {
     return launchUrl(Uri.parse('tel:+$digits'));
   }
 
-  static Future<void> sms(String phone) {
+  static Future<void> sms(String phone, {String? body}) {
     final digits = _normalizeForLaunch(phone);
     if (digits.isEmpty) return Future.value();
-    return launchUrl(Uri.parse('sms:+$digits'));
+    final trimmed = body?.trim() ?? '';
+    final uri = trimmed.isEmpty
+        ? Uri.parse('sms:+$digits')
+        : Uri(
+            scheme: 'sms',
+            path: '+$digits',
+            queryParameters: {'body': trimmed},
+          );
+    return launchUrl(uri);
   }
 
-  static Future<void> whatsappMessage(String phone) async {
-    final uri = whatsappMessageUri(phone);
-    if (uri.path == '/'){ 
+  static Future<void> whatsappMessage(String phone, {String? text}) async {
+    final uri = whatsappMessageUri(phone, text: text);
+    if (uri.path == '/' || uri.path.isEmpty) {
       return;
     }
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -70,6 +82,16 @@ class ContactLauncher {
     }
 
     await launchUrl(whatsappMessageUri(phone), mode: LaunchMode.externalApplication);
+  }
+
+  /// WhatsApp number if set, otherwise mobile.
+  static String whatsappPhoneForSalik({
+    required String mobileNumber,
+    required String whatsappNumber,
+  }) {
+    final wa = whatsappNumber.trim();
+    if (wa.isNotEmpty) return wa;
+    return mobileNumber;
   }
 
   static bool sameNumber(String a, String b) =>

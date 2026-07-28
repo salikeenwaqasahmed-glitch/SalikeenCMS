@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/data/country_codes.dart';
 import '../../../../core/data/reference_data.dart';
+import '../../../../core/contacts/contact_import_actions.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/router/form_navigation.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -483,6 +484,23 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
     } else if (!_initialized && session != null) {
       _gender = UserSession.normalizeGender(session.gender);
       _formLocale = 'en';
+      final params = GoRouterState.of(context).uri.queryParameters;
+      final importName = params['name']?.trim() ?? '';
+      final importMobile = params['mobile']?.trim() ?? '';
+      if (importName.isNotEmpty) {
+        _name.text = importName;
+        _detectFormLocale(importName, '');
+      }
+      if (importMobile.isNotEmpty) {
+        final parsed = PhoneNumberUtils.parseStored(importMobile);
+        _mobileCountry = parsed.country;
+        _whatsappCountry = parsed.country;
+        _mobile.text = PhoneNumberUtils.formatNationalDisplay(
+          parsed.country,
+          parsed.nationalDigits,
+        );
+        _whatsappSameAsMobile = true;
+      }
       _initialized = true;
     }
 
@@ -510,6 +528,16 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
         title: widget.isEditing ? fl10n.t('edit_salik') : fl10n.t('add_salik'),
         showBackButton: true,
         onBack: _handleBack,
+        actions: [
+          if (!widget.isEditing)
+            IconButton(
+              icon: const Icon(Icons.import_contacts),
+              tooltip: fl10n.t('import_contact'),
+              onPressed: () async {
+                await importContactIntoForm(context, ref);
+              },
+            ),
+        ],
         body: Form(
           key: _formKey,
           child: Column(

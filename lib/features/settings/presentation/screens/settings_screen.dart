@@ -14,7 +14,9 @@ import '../../../../core/widgets/app_text.dart';
 import '../../../../core/widgets/env_badge.dart';
 import '../../../../core/widgets/section_title.dart';
 import '../../../../core/widgets/user_scope_banner.dart';
+import '../../../../core/contacts/contact_import_actions.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../saliks/presentation/widgets/salik_import_export_actions.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -178,6 +180,28 @@ class SettingsScreen extends ConsumerWidget {
                       label: Text(l10n.t('sync_now')),
                     ),
                   ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          SectionTitle(l10n.t('import_export')),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.import_contacts),
+                  title: Text(l10n.t('import_contacts')),
+                  onTap: session == null
+                      ? null
+                      : () => showContactImportActions(context, ref),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.upload_file),
+                  title: Text(l10n.t('export_saliks')),
+                  onTap: session == null
+                      ? null
+                      : () => exportSaliksFromSettings(context, ref),
+                ),
               ],
             ),
           ),

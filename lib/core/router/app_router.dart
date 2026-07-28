@@ -8,6 +8,7 @@ import '../../features/saliks/presentation/screens/add_salik_form_screen.dart';
 import '../../features/saliks/presentation/screens/duplicate_saliks_screen.dart';
 import '../../features/saliks/presentation/screens/pending_approvals_screen.dart';
 import '../../features/saliks/presentation/screens/salik_directory_screen.dart';
+import '../../features/saliks/presentation/screens/salik_message_queue_screen.dart';
 import '../../features/saliks/presentation/screens/salik_profile_screen.dart';
 import '../../features/saliks/presentation/providers/salik_provider.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
@@ -127,6 +128,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) =>
                         const PendingApprovalsScreen(),
                   ),
+                  GoRoute(
+                    path: 'message-queue',
+                    builder: (context, state) {
+                      final args = state.extra;
+                      if (args is! SalikMessageQueueArgs ||
+                          args.saliks.isEmpty) {
+                        return const SalikDirectoryScreen();
+                      }
+                      return SalikMessageQueueScreen(args: args);
+                    },
+                  ),
                 ],
               ),
             ],
@@ -160,7 +172,8 @@ class NavigationShellScaffold extends ConsumerWidget {
       location.contains('/saliks/add') ||
       location.contains('/saliks/edit/') ||
       location.contains('/saliks/pending') ||
-      location.contains('/saliks/duplicates');
+      location.contains('/saliks/duplicates') ||
+      location.contains('/saliks/message-queue');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -221,4 +234,5 @@ bool isSubRoute(String location) =>
     location.contains('/saliks/add') ||
     location.contains('/saliks/edit/') ||
     location.contains('/saliks/pending') ||
-    location.contains('/saliks/duplicates');
+    location.contains('/saliks/duplicates') ||
+    location.contains('/saliks/message-queue');

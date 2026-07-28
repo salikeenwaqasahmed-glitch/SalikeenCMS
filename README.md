@@ -52,9 +52,14 @@ Open **Saliks → copy icon** → pick **Keep this record** → **Merge & remove
 ### Saliks
 
 - Directory with search, browse tabs, filter chips
+- **20 per page** with Prev / Next pager
+- Search ranks **name/father** matches first, then **reference**, then mobile/address
+- List sorted by name (locale-aware EN/UR)
+- **Settings → Import & Export** — import contacts, export CSV
+- **Saliks → Message** — select on directory list (filters apply) → WhatsApp or SMS → one-by-one Send/Skip
 - **approval / admin** — main list shows **approved** saliks (gender-scoped for approval)
 - **editor** — approved + own pending with status badge
-- Profile with avatar, call / WhatsApp (approved)
+- Profile with avatar, call / WhatsApp (approved); area shown as one field (`English / Urdu` when both exist)
 - Single-page add/edit form with EN/UR fields
 - Duplicate mobile or name+father blocked on create/update/approve (among approved)
 - Editors: add only; message *Submitted for approval*
@@ -103,6 +108,18 @@ Offline `uid` is `local-{email}` until online login binds Firebase Auth `uid` �
 - **Idle timeout** — 15 minutes without app use signs you out (re-login required)
 - Sync re-auth uses logged-in email only
 - Devices with cached credentials are **trusted**
+- **Firestore PII encryption** — AES-256-GCM client-side on push for name, father, phones, address, reference, notes. Drift local DB stays plaintext (search/sort). Shared org key in `meta/fieldCrypto` (+ `users/{uid}/private/fieldKey` backup). Legacy plaintext docs decrypt as-is until next push. Firebase Console shows ciphertext for those fields.
+- **Contact import** — Settings → Import & Export; requires `READ_CONTACTS` / `NSContactsUsageDescription`; name + primary phone
+- **Export saliks** — Settings → Export CSV of role-scoped list (share sheet)
+- **Message saliks** — Saliks → select → channel/template → auto one-by-one open chats (return to app for next; Skip/Done)
+
+### Local-first sync
+
+- Login online → one hydrate pull into Drift
+- Browse reads Drift only (no live Firestore listeners)
+- Saves enqueue outbox → background **push only**
+- Pull-to-refresh / Settings **Sync now** → full push + pull
+- Offline / reopen → last cached Drift data
 
 ### Firebase
 
