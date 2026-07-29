@@ -21,6 +21,8 @@ import '../widgets/salik_import_export_actions.dart';
 import '../providers/area_provider.dart';
 import '../providers/salik_provider.dart';
 
+enum _SelectPurpose { message, export }
+
 class SalikDirectoryScreen extends ConsumerStatefulWidget {
   const SalikDirectoryScreen({super.key});
 
@@ -30,10 +32,12 @@ class SalikDirectoryScreen extends ConsumerStatefulWidget {
 }
 
 class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
-  bool _selecting = false;
+  _SelectPurpose? _purpose;
   final Set<String> _selected = {};
 
-  void _enterSelectMode() {
+  bool get _selecting => _purpose != null;
+
+  void _enterSelectMode(_SelectPurpose purpose) {
     final filtered = ref.read(sortedFilteredSaliksProvider);
     if (filtered.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -42,14 +46,14 @@ class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
       return;
     }
     setState(() {
-      _selecting = true;
+      _purpose = purpose;
       _selected.clear();
     });
   }
 
   void _exitSelectMode() {
     setState(() {
-      _selecting = false;
+      _purpose = null;
       _selected.clear();
     });
   }
@@ -66,12 +70,21 @@ class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
     });
   }
 
+  List<Salik> _pickedFrom(List<Salik> filtered) =>
+      filtered.where((s) => _selected.contains(s.salikId)).toList();
+
   Future<void> _continueMessaging() async {
-    final filtered = ref.read(sortedFilteredSaliksProvider);
-    final picked =
-        filtered.where((s) => _selected.contains(s.salikId)).toList();
+    final picked = _pickedFrom(ref.read(sortedFilteredSaliksProvider));
     if (picked.isEmpty) return;
     await continueMessageWithSelected(context, picked);
+    if (!mounted) return;
+    _exitSelectMode();
+  }
+
+  Future<void> _continueExport() async {
+    final picked = _pickedFrom(ref.read(sortedFilteredSaliksProvider));
+    if (picked.isEmpty) return;
+    await exportSelectedSaliks(context, ref, picked);
     if (!mounted) return;
     _exitSelectMode();
   }
@@ -105,6 +118,8 @@ class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
         ? '${l10n.t('select_contacts')} (${_selected.length})'
         : l10n.t('saliks');
 
+    final bottomIsExport = _purpose == _SelectPurpose.export;
+
     return AppScaffold(
       title: title,
       actions: [
@@ -121,9 +136,14 @@ class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
           ),
         ] else ...[
           IconButton(
+            icon: const Icon(Icons.upload_file_outlined),
+            tooltip: l10n.t('export_saliks'),
+            onPressed: () => _enterSelectMode(_SelectPurpose.export),
+          ),
+          IconButton(
             icon: const Icon(Icons.sms_outlined),
             tooltip: l10n.t('message_saliks'),
-            onPressed: _enterSelectMode,
+            onPressed: () => _enterSelectMode(_SelectPurpose.message),
           ),
           if (canResolveDuplicates)
             IconButton(
@@ -278,11 +298,20 @@ class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
                     AppSpacing.sm,
                   ),
                   child: FilledButton.icon(
-                    onPressed:
-                        _selected.isEmpty ? null : _continueMessaging,
-                    icon: const Icon(Icons.arrow_forward),
+                    onPressed: _selected.isEmpty
+                        ? null
+                        : (bottomIsExport
+                            ? _continueExport
+                            : _continueMessaging),
+                    icon: Icon(
+                      bottomIsExport
+                          ? Icons.upload_file
+                          : Icons.arrow_forward,
+                    ),
                     label: Text(
-                      '${l10n.t('next_step')} (${_selected.length})',
+                      bottomIsExport
+                          ? '${l10n.t('export_saliks')} (${_selected.length})'
+                          : '${l10n.t('next_step')} (${_selected.length})',
                     ),
                   ),
                 ),

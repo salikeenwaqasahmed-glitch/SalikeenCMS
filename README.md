@@ -55,7 +55,8 @@ Open **Saliks → copy icon** → pick **Keep this record** → **Merge & remove
 - **20 per page** with Prev / Next pager
 - Search ranks **name/father** matches first, then **reference**, then mobile/address
 - List sorted by name (locale-aware EN/UR)
-- **Settings → Import & Export** — import contacts, export CSV
+- **Settings → Import & Export** — import contacts, export all CSV
+- **Saliks → Export** — select on directory list → CSV of picked only
 - **Saliks → Message** — select on directory list (filters apply) → WhatsApp or SMS → one-by-one Send/Skip
 - **approval / admin** — main list shows **approved** saliks (gender-scoped for approval)
 - **editor** — approved + own pending with status badge
@@ -110,7 +111,7 @@ Offline `uid` is `local-{email}` until online login binds Firebase Auth `uid` �
 - Devices with cached credentials are **trusted**
 - **Firestore PII encryption** — AES-256-GCM client-side on push for name, father, phones, address, reference, notes. Drift local DB stays plaintext (search/sort). Shared org key in `meta/fieldCrypto` (+ `users/{uid}/private/fieldKey` backup). Legacy plaintext docs decrypt as-is until next push. Firebase Console shows ciphertext for those fields.
 - **Contact import** — Settings → Import & Export; requires `READ_CONTACTS` / `NSContactsUsageDescription`; name + primary phone
-- **Export saliks** — Settings → Export CSV of role-scoped list (share sheet)
+- **Export saliks** — Saliks → export icon → select rows → CSV share; Settings still exports all role-scoped
 - **Message saliks** — Saliks → select → channel/template → auto one-by-one open chats (return to app for next; Skip/Done)
 
 ### Local-first sync

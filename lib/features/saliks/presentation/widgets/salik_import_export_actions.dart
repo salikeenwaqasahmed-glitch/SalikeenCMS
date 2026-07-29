@@ -15,8 +15,16 @@ Future<void> exportSaliksFromSettings(
   BuildContext context,
   WidgetRef ref,
 ) async {
-  final l10n = context.l10n;
   final saliks = ref.read(saliksStreamProvider).valueOrNull ?? [];
+  await exportSelectedSaliks(context, ref, saliks);
+}
+
+Future<void> exportSelectedSaliks(
+  BuildContext context,
+  WidgetRef ref,
+  List<Salik> saliks,
+) async {
+  final l10n = context.l10n;
   if (saliks.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.t('export_empty'))),
