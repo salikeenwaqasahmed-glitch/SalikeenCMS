@@ -20,4 +20,11 @@ class AppConfig {
 
   static String get staffEmailDomain =>
       isProd ? '@cms.com' : '@dev.cms.com';
+
+  /// Shared AES-256 field-crypto key (base64, 32 bytes). Same value for .NET.
+  /// Override via `--dart-define=FIELD_CRYPTO_KEY_BASE64=...`
+  static const fieldCryptoKeyBase64 = String.fromEnvironment(
+    'FIELD_CRYPTO_KEY_BASE64',
+    defaultValue: 'oseHVKBqsJE6twGWGPl4/51tjxNknNktqe1wU6vT1Ws=',
+  );
 }

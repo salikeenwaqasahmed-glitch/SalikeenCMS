@@ -96,14 +96,25 @@ class SyncQueue extends Table {
   TextColumn get lastError => text().nullable()();
 }
 
-@DriftDatabase(tables: [LocalUsers, LocalSaliks, LocalAreas, SyncQueue])
+/// App-local key/value (e.g. field-crypto key). Never synced to Firestore.
+class LocalAppKv extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {key};
+}
+
+@DriftDatabase(
+  tables: [LocalUsers, LocalSaliks, LocalAreas, SyncQueue, LocalAppKv],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -183,6 +194,9 @@ class AppDatabase extends _$AppDatabase {
             await migrator.dropColumn(localSaliks, 'city_id');
             await migrator.dropColumn(localAreas, 'city_id');
           }
+          if (from < 8) {
+            await migrator.createTable(localAppKv);
+          }
         },
       );
 
@@ -196,6 +210,22 @@ class AppDatabase extends _$AppDatabase {
             )
           : null,
     );
+  }
+
+  Future<String?> getKv(String key) async {
+    final row = await (select(localAppKv)..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    return row?.value;
+  }
+
+  Future<void> setKv(String key, String value) async {
+    await into(localAppKv).insertOnConflictUpdate(
+      LocalAppKvCompanion.insert(key: key, value: value),
+    );
+  }
+
+  Future<void> deleteKv(String key) async {
+    await (delete(localAppKv)..where((t) => t.key.equals(key))).go();
   }
 
   Stream<List<LocalSalik>> watchSaliks({

@@ -1,32 +1,29 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import '../../features/auth/domain/user_role.dart';
 import '../../features/auth/domain/user_session.dart';
-import '../network/connectivity_service.dart';
+import '../config/app_config.dart';
+import '../database/app_database.dart';
 import 'field_crypto.dart';
 
 final fieldCryptoKeyStoreProvider = Provider<FieldCryptoKeyStore>((ref) {
   return FieldCryptoKeyStore(
+    ref.watch(appDatabaseProvider),
     const FlutterSecureStorage(),
-    FirebaseFirestore.instance,
-    ref.watch(connectivityServiceProvider),
   );
 });
 
-/// Shared org AES key: secure storage + Firestore `meta/fieldCrypto`.
-/// Also mirrors to `users/{uid}/private/fieldKey` for the creating user.
+/// AES field-crypto key: Drift `local_app_kv` only (never Firestore).
+/// Prefers [AppConfig.fieldCryptoKeyBase64] when set (shared org key).
 class FieldCryptoKeyStore {
-  FieldCryptoKeyStore(this._secure, this._firestore, this._connectivity);
+  FieldCryptoKeyStore(this._db, this._secure);
 
-  static const _storageKey = 'salik_field_crypto_key_v1';
-  static const _metaDoc = 'fieldCrypto';
+  static const kvKey = 'field_crypto_key_v1';
+  static const _legacySecureKey = 'salik_field_crypto_key_v1';
 
+  final AppDatabase _db;
   final FlutterSecureStorage _secure;
-  final FirebaseFirestore _firestore;
-  final ConnectivityService _connectivity;
 
   FieldCrypto? _cached;
 
@@ -35,87 +32,57 @@ class FieldCryptoKeyStore {
   Future<FieldCrypto?> ensureKey(UserSession? session) async {
     if (_cached != null) return _cached;
 
-    final local = await _secure.read(key: _storageKey);
-    if (local != null && local.isNotEmpty) {
-      try {
-        _cached = FieldCrypto.fromBase64Key(local);
-        return _cached;
-      } catch (e) {
-        debugPrint('Invalid local field crypto key: $e');
+    final fromDefine = AppConfig.fieldCryptoKeyBase64.trim();
+    if (fromDefine.isNotEmpty) {
+      final existing = await _db.getKv(kvKey);
+      if (existing != fromDefine) {
+        await _db.setKv(kvKey, fromDefine);
       }
+      return _cacheFromBase64(fromDefine);
     }
 
-    if (!await _connectivity.isOnline || session == null) {
-      return null;
+    final fromDrift = await _db.getKv(kvKey);
+    if (fromDrift != null && fromDrift.isNotEmpty) {
+      return _cacheFromBase64(fromDrift);
     }
 
+    // One-shot migrate from older FlutterSecureStorage installs.
     try {
-      final metaSnap =
-          await _firestore.collection('meta').doc(_metaDoc).get();
-      if (metaSnap.exists) {
-        final keyBase64 = metaSnap.data()?['keyBase64'] as String?;
-        if (keyBase64 != null && keyBase64.isNotEmpty) {
-          await _secure.write(key: _storageKey, value: keyBase64);
-          _cached = FieldCrypto.fromBase64Key(keyBase64);
-          return _cached;
-        }
+      final legacy = await _secure.read(key: _legacySecureKey);
+      if (legacy != null && legacy.isNotEmpty) {
+        await _db.setKv(kvKey, legacy);
+        await _secure.delete(key: _legacySecureKey);
+        return _cacheFromBase64(legacy);
       }
-
-      // Per-user private backup (plan path).
-      if (!session.uid.startsWith('local-')) {
-        final privateSnap = await _firestore
-            .collection('users')
-            .doc(session.uid)
-            .collection('private')
-            .doc('fieldKey')
-            .get();
-        final keyBase64 = privateSnap.data()?['keyBase64'] as String?;
-        if (keyBase64 != null && keyBase64.isNotEmpty) {
-          await _secure.write(key: _storageKey, value: keyBase64);
-          _cached = FieldCrypto.fromBase64Key(keyBase64);
-          // Promote to shared meta if missing and admin.
-          if (session.role == UserRole.admin) {
-            await _uploadSharedKey(keyBase64);
-          }
-          return _cached;
-        }
-      }
-
-      // First online admin creates the shared org key.
-      if (session.role == UserRole.admin && !session.uid.startsWith('local-')) {
-        final keyBase64 = FieldCrypto.generateKeyBase64();
-        await _uploadSharedKey(keyBase64);
-        await _firestore
-            .collection('users')
-            .doc(session.uid)
-            .collection('private')
-            .doc('fieldKey')
-            .set({
-          'keyBase64': keyBase64,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        await _secure.write(key: _storageKey, value: keyBase64);
-        _cached = FieldCrypto.fromBase64Key(keyBase64);
-        return _cached;
-      }
-    } catch (e, st) {
-      debugPrint('Field crypto key bootstrap failed: $e\n$st');
+    } catch (e) {
+      debugPrint('Field crypto secure-storage migrate failed: $e');
     }
 
-    return null;
+    // Dev fallback only when no compile-time key.
+    final generated = FieldCrypto.generateKeyBase64();
+    await _db.setKv(kvKey, generated);
+    debugPrint(
+      'Field crypto: generated local key (set FIELD_CRYPTO_KEY_BASE64 '
+      'for shared key across installs/.NET)',
+    );
+    return _cacheFromBase64(generated);
   }
 
-  Future<void> _uploadSharedKey(String keyBase64) async {
-    await _firestore.collection('meta').doc(_metaDoc).set({
-      'keyBase64': keyBase64,
-      'algorithm': 'AES-256-GCM',
-      'version': 1,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  FieldCrypto? _cacheFromBase64(String keyBase64) {
+    try {
+      _cached = FieldCrypto.fromBase64Key(keyBase64);
+      return _cached;
+    } catch (e) {
+      debugPrint('Invalid field crypto key: $e');
+      return null;
+    }
   }
 
   Future<void> clearLocal() async {
     _cached = null;
-    await _secure.delete(key: _storageKey);
+    await _db.deleteKv(kvKey);
+    try {
+      await _secure.delete(key: _legacySecureKey);
+    } catch (_) {}
   }
 }

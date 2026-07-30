@@ -83,6 +83,10 @@ Open **Saliks → copy icon** → pick **Keep this record** → **Merge & remove
 
 `APP_ENV` dart-define + Android flavor must match (`dev`/`dev`, `prod`/`prod`). Default is **dev** so `flutter run` never hits prod by accident.
 
+Optional shared PII crypto key (all installs + .NET must match):
+
+`--dart-define=FIELD_CRYPTO_KEY_BASE64=<base64-of-32-bytes>`
+
 Dev builds show **Dev App** chip on splash, login, and settings. Prod builds show no env badge.
 
 ### Offline login (CMS staff)
@@ -109,7 +113,7 @@ Offline `uid` is `local-{email}` until online login binds Firebase Auth `uid` �
 - **Idle timeout** — 15 minutes without app use signs you out (re-login required)
 - Sync re-auth uses logged-in email only
 - Devices with cached credentials are **trusted**
-- **Firestore PII encryption** — AES-256-GCM client-side on push for name, father, phones, address, reference, notes. Drift local DB stays plaintext (search/sort). Shared org key in `meta/fieldCrypto` (+ `users/{uid}/private/fieldKey` backup). Legacy plaintext docs decrypt as-is until next push. Firebase Console shows ciphertext for those fields.
+- **Firestore PII encryption** — AES-256-GCM client-side on push for name, father, phones, address, reference, notes. Drift local DB stays plaintext (search/sort). Org key stored in Drift `local_app_kv` only (never Firestore). Seed shared key with `--dart-define=FIELD_CRYPTO_KEY_BASE64=<32-byte-base64>` (same string for .NET). Without dart-define, app generates a per-install key. Legacy plaintext docs decrypt as-is until next push. Delete old Console docs `meta/fieldCrypto` and `users/*/private/fieldKey` if present.
 - **Contact import** — Settings → Import & Export; requires `READ_CONTACTS` / `NSContactsUsageDescription`; name + primary phone
 - **Export saliks** — Saliks → export icon → select rows → CSV share; Settings still exports all role-scoped
 - **Message saliks** — Saliks → select → channel/template → auto one-by-one open chats (return to app for next; Skip/Done)
