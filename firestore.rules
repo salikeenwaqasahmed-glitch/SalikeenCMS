@@ -345,7 +345,20 @@ service cloud.firestore {
       allow delete: if canDeleteSalik();
     }
 
+    // Soft-deleted saliks archived from saliks/{id} — create on delete, admin read.
+    match /delete_saliks/{salikId} {
+      allow read: if signedIn() && isAdmin();
+      allow create: if canDeleteSalik();
+      allow update, delete: if signedIn() && isAdmin();
+    }
+
     match /areas/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && isAdmin();
+    }
+
+    match /bazams/{id} {
       allow read: if signedIn();
       allow create: if signedIn();
       allow update, delete: if signedIn() && isAdmin();

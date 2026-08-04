@@ -543,7 +543,6 @@ class SalikListTile extends StatelessWidget {
       ));
     }
     if (statusBadge != null) {
-      if (badges.isNotEmpty) badges.add(const SizedBox(width: 4));
       badges.add(_SalikCardBadge(
         label: statusBadge!,
         background: Colors.orange.shade50,
@@ -556,165 +555,110 @@ class SalikListTile extends StatelessWidget {
       onSelectedChanged!(!selected!);
     }
 
-    return Card(
-      margin: const EdgeInsetsDirectional.only(bottom: AppSpacing.sm),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: _selecting ? toggle : null,
-        child: Stack(
+    final displayName = salik.name.trim();
+    final displayFather = salik.fatherName.trim();
+    final displayLocation = locationLabel.trim();
+    final mobile = salik.mobileNumber.trim();
+
+    final subtitleParts = <String>[
+      if (displayFather.isNotEmpty) displayFather,
+      if (mobile.isNotEmpty) mobile,
+    ];
+    final subtitle = subtitleParts.join(' · ');
+
+    return InkWell(
+      onTap: _selecting ? toggle : onProfile,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.sm,
-                AppSpacing.sm,
-                _selecting ? AppSpacing.sm : 40,
-                AppSpacing.sm,
+            if (_selecting) ...[
+              Checkbox(
+                value: selected,
+                visualDensity: VisualDensity.compact,
+                onChanged: (v) {
+                  if (v == null) return;
+                  onSelectedChanged?.call(v);
+                },
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              const SizedBox(width: AppSpacing.xs),
+            ],
+            SalikAvatar(name: displayName, radius: 18),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (_selecting) ...[
-                    Checkbox(
-                      value: selected,
-                      onChanged: (v) {
-                        if (v == null) return;
-                        onSelectedChanged?.call(v);
-                      },
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                  ],
-                  Expanded(
-                    child: _SalikCardInfo(
-                      salik: salik,
-                      locationLabel: locationLabel,
-                      onProfile: _selecting ? toggle : onProfile,
+                  Text(
+                    displayName.isNotEmpty ? displayName : '—',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textDirection: TextDirection.ltr,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      height: 1.2,
                     ),
                   ),
-                  if (badges.isNotEmpty) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    _SalikCardBadges(badges: badges),
+                  if (subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textDirection: TextDirection.ltr,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.2,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                  if (displayLocation.isNotEmpty || badges.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        if (displayLocation.isNotEmpty)
+                          Flexible(
+                            child: Text(
+                              displayLocation,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textDirection: TextDirection.ltr,
+                              style: TextStyle(
+                                fontSize: 11,
+                                height: 1.2,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ),
+                        if (badges.isNotEmpty) ...[
+                          if (displayLocation.isNotEmpty)
+                            const SizedBox(width: AppSpacing.xs),
+                          ...badges.map(
+                            (b) => Padding(
+                              padding: const EdgeInsetsDirectional.only(
+                                start: 2,
+                              ),
+                              child: b,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ],
               ),
             ),
             if (!_selecting)
-              Positioned(
-                top: 4,
-                right: 4,
-                child: SalikCardContactButton(
-                  mobileNumber: salik.mobileNumber,
-                  whatsappNumber: salik.whatsappNumber,
-                ),
+              SalikCardContactButton(
+                mobileNumber: salik.mobileNumber,
+                whatsappNumber: salik.whatsappNumber,
               ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SalikCardInfo extends StatelessWidget {
-  const _SalikCardInfo({
-    required this.salik,
-    required this.locationLabel,
-    required this.onProfile,
-  });
-
-  final Salik salik;
-  final String locationLabel;
-  final VoidCallback onProfile;
-
-  static const _lineStyle = TextStyle(fontSize: 13, height: 1.25);
-  static final _mutedStyle = TextStyle(
-    fontSize: 12,
-    height: 1.25,
-    color: Colors.grey.shade600,
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    final displayName = salik.name.trim();
-    final displayFather = salik.fatherName.trim();
-    final displayLocation = locationLabel.trim();
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: onProfile,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SalikAvatar(name: displayName, radius: 20),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (displayName.isNotEmpty)
-                  Text(
-                    displayName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.start,
-                    textDirection: TextDirection.ltr,
-                    style: _lineStyle.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                if (displayFather.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    displayFather,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.start,
-                    textDirection: TextDirection.ltr,
-                    style: _mutedStyle,
-                  ),
-                ],
-                if (salik.mobileNumber.trim().isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    salik.mobileNumber,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.start,
-                    textDirection: TextDirection.ltr,
-                    style: _lineStyle.copyWith(fontWeight: FontWeight.w500),
-                  ),
-                ],
-                if (displayLocation.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    displayLocation,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.start,
-                    textDirection: TextDirection.ltr,
-                    style: _mutedStyle.copyWith(
-                      color: Colors.grey.shade500,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SalikCardBadges extends StatelessWidget {
-  const _SalikCardBadges({required this.badges});
-
-  final List<Widget> badges;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: badges,
     );
   }
 }

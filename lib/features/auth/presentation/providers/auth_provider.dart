@@ -16,10 +16,10 @@ import '../../domain/user_session.dart';
 
 final seedMessageProvider = StateProvider<String?>((ref) => null);
 
-/// True while [_runPostLoginWork] owns hydrate/sync (blocks bootstrap duplicate).
+/// True while [_runPostLoginWork] runs (profile refresh / admin seed).
 final postLoginSyncInFlightProvider = StateProvider<bool>((ref) => false);
 
-/// Set when post-login sync fails; UI shows SnackBar once.
+/// Set when post-login profile work fails; UI shows SnackBar once.
 final loginSyncErrorProvider = StateProvider<String?>((ref) => null);
 
 final authStateProvider = StreamProvider<UserSession?>((ref) {
@@ -93,29 +93,10 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
           debugPrint('post-login profile sync failed: $e\n$st');
         }
 
-        final sync = _ref.read(syncServiceProvider);
-        try {
-          await sync.hydrate(active);
-          if (sync.lastSyncError != null) {
-            _ref.read(loginSyncErrorProvider.notifier).state =
-                sync.lastSyncError;
-          }
-        } catch (e, st) {
-          debugPrint('post-login hydrate failed: $e\n$st');
-          _ref.read(loginSyncErrorProvider.notifier).state = e.toString();
-        }
-
         if (active.role == UserRole.admin) {
           try {
-            final seed = SeedService(
-              FirebaseFirestore.instance,
-              FirebaseAuth.instance,
-            );
+            final seed = SeedService(FirebaseFirestore.instance);
             await seed.seedIfNeeded();
-            await seed.ensureStaffUsers(
-              restoreEmail: active.email,
-              restorePassword: password,
-            );
             _ref.read(seedMessageProvider.notifier).state = 'seed_success';
           } catch (e, st) {
             debugPrint('post-login seed failed: $e\n$st');

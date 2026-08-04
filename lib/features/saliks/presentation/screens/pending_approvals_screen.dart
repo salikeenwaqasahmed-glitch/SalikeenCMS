@@ -12,7 +12,6 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/salik_widgets.dart';
-import '../../../../core/sync/sync_refresh.dart';
 import '../../../../core/widgets/offline_cached_banner.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/entities/approval_status.dart';
@@ -54,37 +53,34 @@ class PendingApprovalsScreen extends ConsumerWidget {
             );
           }
 
-          return RefreshIndicator(
-            onRefresh: () => pullToRefreshSync(ref, context: context),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              itemCount: saliks.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return const Padding(
-                    padding: EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: OfflineCachedBanner(),
-                  );
-                }
-                final salik = saliks[index - 1];
-                final locationLabel =
-                    salikLocationLabel(salik, areaLookup);
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (!isEditor)
-                      _PendingSubmitterLine(salik: salik),
-                    SalikListTile(
-                      salik: salik,
-                      locationLabel: locationLabel,
-                      onProfile: () =>
-                          context.push('/saliks/profile/${salik.salikId}'),
-                      statusBadge: _statusLabel(l10n, salik.approvalStatus),
-                    ),
-                  ],
+          return ListView.builder(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            itemCount: saliks.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return const Padding(
+                  padding: EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: OfflineCachedBanner(),
                 );
-              },
-            ),
+              }
+              final salik = saliks[index - 1];
+              final locationLabel =
+                  salikLocationLabel(salik, areaLookup);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!isEditor)
+                    _PendingSubmitterLine(salik: salik),
+                  SalikListTile(
+                    salik: salik,
+                    locationLabel: locationLabel,
+                    onProfile: () =>
+                        context.push('/saliks/profile/${salik.salikId}'),
+                    statusBadge: _statusLabel(l10n, salik.approvalStatus),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),

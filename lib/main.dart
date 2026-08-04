@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'core/auth/session_idle_timeout.dart';
-import 'core/auth/local_auth_store.dart';
-import 'core/auth/local_user_seed.dart';
 import 'core/config/app_config.dart';
 import 'core/data/local_data_seed.dart';
 import 'core/database/app_database.dart';
@@ -22,11 +19,9 @@ Future<void> main() async {
   await FirebaseOptionsForEnv.ensureInitialized();
 
   final bootstrapContainer = ProviderContainer();
-  final authStore = bootstrapContainer.read(localAuthStoreProvider);
   final database = bootstrapContainer.read(appDatabaseProvider);
-  await LocalUserSeed.ensureUsers(authStore);
   await LocalDataSeed.ensureReferenceData(database);
-  debugPrint('Local seed done: users + reference data ready for offline use');
+  debugPrint('Local seed done: reference data ready for offline use');
   debugPrint(
     'App env: ${AppConfig.env} firebase=${AppConfig.firebaseProjectId} '
     'staffDomain=${AppConfig.staffEmailDomain}',
@@ -65,10 +60,8 @@ class SalikManagementApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (context, child) => SessionIdleTimeout(
-        child: LoginSyncErrorListener(
-          child: AuthLoadingGate(child: child),
-        ),
+      builder: (context, child) => LoginSyncErrorListener(
+        child: AuthLoadingGate(child: child),
       ),
       routerConfig: router,
     );

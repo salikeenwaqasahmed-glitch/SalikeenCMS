@@ -78,7 +78,6 @@ class FieldCrypto {
     'address',
     'referenceName',
     'referenceMobile',
-    'notes',
   };
 
   Map<String, dynamic> encryptSalikMap(Map<String, dynamic> map) {
@@ -111,7 +110,6 @@ class FieldCrypto {
     required String address,
     required String referenceName,
     required String referenceMobile,
-    String? notes,
   }) {
     return SalikPiiBundle(
       name: encryptField(name) ?? '',
@@ -121,7 +119,6 @@ class FieldCrypto {
       address: encryptField(address) ?? '',
       referenceName: encryptField(referenceName) ?? '',
       referenceMobile: encryptField(referenceMobile) ?? '',
-      notes: encryptField(notes),
     );
   }
 }
@@ -135,7 +132,6 @@ class SalikPiiBundle {
     required this.address,
     required this.referenceName,
     required this.referenceMobile,
-    this.notes,
   });
 
   final String name;
@@ -145,5 +141,4 @@ class SalikPiiBundle {
   final String address;
   final String referenceName;
   final String referenceMobile;
-  final String? notes;
 }

@@ -11,17 +11,19 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/salik_widgets.dart';
-import '../../../../core/sync/sync_refresh.dart';
 import '../../../../core/widgets/offline_cached_banner.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../dashboard/presentation/widgets/filter_bar.dart';
 import '../widgets/salik_browse_segment_bar.dart';
+import '../widgets/salik_filter_sheet.dart';
 import '../../domain/entities/salik.dart';
 import '../widgets/salik_import_export_actions.dart';
 import '../providers/area_provider.dart';
 import '../providers/salik_provider.dart';
 
 enum _SelectPurpose { message, export }
+
+enum _OverflowAction { export, message, duplicates }
 
 class SalikDirectoryScreen extends ConsumerStatefulWidget {
   const SalikDirectoryScreen({super.key});
@@ -89,6 +91,17 @@ class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
     _exitSelectMode();
   }
 
+  void _onOverflow(_OverflowAction action) {
+    switch (action) {
+      case _OverflowAction.export:
+        _enterSelectMode(_SelectPurpose.export);
+      case _OverflowAction.message:
+        _enterSelectMode(_SelectPurpose.message);
+      case _OverflowAction.duplicates:
+        context.push('/saliks/duplicates');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -98,6 +111,7 @@ class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
     final paged = ref.watch(pagedSaliksProvider);
     final page = ref.watch(salikListPageProvider);
     final pageCount = ref.watch(salikListPageCountProvider);
+    final filter = ref.watch(salikFilterProvider);
     final filterNotifier = ref.read(salikFilterProvider.notifier);
     final areas = ref.watch(areasProvider).valueOrNull ?? kAreas;
     final areaLookup = buildAreaLookup(areas);
@@ -119,6 +133,10 @@ class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
         : l10n.t('saliks');
 
     final bottomIsExport = _purpose == _SelectPurpose.export;
+    final filterCount = filter.activeAdvancedFilterCount;
+    final countLabel = l10n
+        .t('salik_count')
+        .replaceAll('{count}', '${filtered.length}');
 
     return AppScaffold(
       title: title,
@@ -135,27 +153,6 @@ class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
             onPressed: _exitSelectMode,
           ),
         ] else ...[
-          IconButton(
-            icon: const Icon(Icons.upload_file_outlined),
-            tooltip: l10n.t('export_saliks'),
-            onPressed: () => _enterSelectMode(_SelectPurpose.export),
-          ),
-          IconButton(
-            icon: const Icon(Icons.sms_outlined),
-            tooltip: l10n.t('message_saliks'),
-            onPressed: () => _enterSelectMode(_SelectPurpose.message),
-          ),
-          if (canResolveDuplicates)
-            IconButton(
-              icon: duplicateCount > 0
-                  ? Badge(
-                      label: Text('$duplicateCount'),
-                      child: const Icon(Icons.copy_all_outlined),
-                    )
-                  : const Icon(Icons.copy_all_outlined),
-              tooltip: l10n.t('duplicate_data'),
-              onPressed: () => context.push('/saliks/duplicates'),
-            ),
           if (canViewPending)
             IconButton(
               icon: PendingSaliksBadge(
@@ -167,13 +164,29 @@ class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
                   : l10n.t('pending_approvals'),
               onPressed: () => context.push('/saliks/pending'),
             ),
-          if (canCreate)
-            IconButton(
-              icon: const Icon(Icons.person_add),
-              tooltip: l10n.t('add_salik'),
-              onPressed: () =>
-                  context.go(addSalikRoute(from: FormReturnRoute.saliks)),
-            ),
+          PopupMenuButton<_OverflowAction>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: _onOverflow,
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: _OverflowAction.export,
+                child: Text(l10n.t('export_saliks')),
+              ),
+              PopupMenuItem(
+                value: _OverflowAction.message,
+                child: Text(l10n.t('message_saliks')),
+              ),
+              if (canResolveDuplicates)
+                PopupMenuItem(
+                  value: _OverflowAction.duplicates,
+                  child: Text(
+                    duplicateCount > 0
+                        ? '${l10n.t('duplicate_data')} ($duplicateCount)'
+                        : l10n.t('duplicate_data'),
+                  ),
+                ),
+            ],
+          ),
         ],
       ],
       body: Column(
@@ -205,10 +218,62 @@ class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
           const SizedBox(height: AppSpacing.sm),
           const SalikBrowseSegmentBar(),
           const SizedBox(height: AppSpacing.sm),
+          Padding(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: AppSpacing.md,
+            ),
+            child: Row(
+              children: [
+                Badge(
+                  isLabelVisible: filterCount > 0,
+                  label: Text('$filterCount'),
+                  child: OutlinedButton.icon(
+                    onPressed: () => showSalikFilterSheet(context),
+                    icon: const Icon(Icons.tune, size: 18),
+                    label: Text(l10n.t('filters')),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: filterCount > 0
+                      ? const FilterChips()
+                      : Text(
+                          countLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+          if (filterCount > 0) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Padding(
+              padding: const EdgeInsetsDirectional.symmetric(
+                horizontal: AppSpacing.md,
+              ),
+              child: Text(
+                countLabel,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.sm),
           const OfflineCachedBanner(),
-          const SizedBox(height: AppSpacing.sm),
-          const FilterChips(),
-          const SizedBox(height: AppSpacing.sm),
           Expanded(
             child: saliksAsync.when(
               loading: () => const AppLoadingPage(),
@@ -228,62 +293,63 @@ class _SalikDirectoryScreenState extends ConsumerState<SalikDirectoryScreen> {
                         : null,
                   );
                 }
-                return RefreshIndicator(
-                  onRefresh: () => pullToRefreshSync(ref, context: context),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                    ),
-                    itemCount: paged.length + (pageCount > 1 ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == paged.length) {
-                        return _SalikPageControls(
-                          page: page,
-                          pageCount: pageCount,
-                          onPrev: page > 0
-                              ? () => ref
-                                  .read(salikListPageProvider.notifier)
-                                  .state = page - 1
-                              : null,
-                          onNext: page < pageCount - 1
-                              ? () => ref
-                                  .read(salikListPageProvider.notifier)
-                                  .state = page + 1
-                              : null,
-                        );
-                      }
-                      final salik = paged[index];
-                      final locationLabel =
-                          salikLocationLabel(salik, areaLookup);
-                      return SalikListTile(
-                        salik: salik,
-                        locationLabel: locationLabel,
-                        statusBadge: salik.isPending
-                            ? l10n.t('approval_pending')
-                            : null,
-                        selected: _selecting
-                            ? _selected.contains(salik.salikId)
-                            : null,
-                        onSelectedChanged: _selecting
-                            ? (checked) {
-                                setState(() {
-                                  if (checked) {
-                                    _selected.add(salik.salikId);
-                                  } else {
-                                    _selected.remove(salik.salikId);
-                                  }
-                                });
-                              }
-                            : null,
-                        onProfile: () =>
-                            context.push('/saliks/profile/${salik.salikId}'),
-                      );
-                    },
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
                   ),
+                  itemCount: paged.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final salik = paged[index];
+                    final locationLabel =
+                        salikLocationLabel(salik, areaLookup);
+                    return SalikListTile(
+                      salik: salik,
+                      locationLabel: locationLabel,
+                      statusBadge: salik.isPending
+                          ? l10n.t('approval_pending')
+                          : null,
+                      selected: _selecting
+                          ? _selected.contains(salik.salikId)
+                          : null,
+                      onSelectedChanged: _selecting
+                          ? (checked) {
+                              setState(() {
+                                if (checked) {
+                                  _selected.add(salik.salikId);
+                                } else {
+                                  _selected.remove(salik.salikId);
+                                }
+                              });
+                            }
+                          : null,
+                      onProfile: () =>
+                          context.push('/saliks/profile/${salik.salikId}'),
+                    );
+                  },
                 );
               },
             ),
           ),
+          if (pageCount > 1 && filtered.isNotEmpty)
+            Material(
+              elevation: 4,
+              color: Theme.of(context).colorScheme.surface,
+              child: _SalikPageControls(
+                page: page,
+                pageCount: pageCount,
+                onPrev: page > 0
+                    ? () =>
+                        ref.read(salikListPageProvider.notifier).state =
+                            page - 1
+                    : null,
+                onNext: page < pageCount - 1
+                    ? () =>
+                        ref.read(salikListPageProvider.notifier).state =
+                            page + 1
+                    : null,
+              ),
+            ),
           if (_selecting)
             SafeArea(
               top: false,

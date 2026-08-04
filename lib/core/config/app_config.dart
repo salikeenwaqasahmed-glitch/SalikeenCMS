@@ -16,8 +16,6 @@ class AppConfig {
   static String get firebaseProjectId =>
       isProd ? 'salikeencms-prod' : 'salikeencms';
 
-  static const sessionIdleTimeout = Duration(minutes: 15);
-
   static String get staffEmailDomain =>
       isProd ? '@cms.com' : '@dev.cms.com';
 

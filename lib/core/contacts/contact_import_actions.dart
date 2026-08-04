@@ -9,6 +9,7 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/saliks/data/salik_repository.dart';
 import '../../features/saliks/domain/entities/duplicate_salik_reason.dart';
 import '../../features/saliks/domain/entities/salik.dart';
+import '../data/reference_data.dart';
 import '../localization/app_localizations.dart';
 import '../router/form_navigation.dart';
 import '../theme/app_spacing.dart';
@@ -91,7 +92,7 @@ Future<void> importContactsBatch(BuildContext context, WidgetRef ref) async {
         whatsappNumber: contact.mobile,
         areaId: '',
         genderId: gender,
-        bazamId: '',
+        bazamId: kDefaultBazamId,
         khanqahId: '',
         salikCategoryId: '',
         dateOfBaith: DateTime.now().toIso8601String().split('T').first,

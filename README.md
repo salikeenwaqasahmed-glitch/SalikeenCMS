@@ -62,6 +62,7 @@ Open **Saliks → copy icon** → pick **Keep this record** → **Merge & remove
 - **editor** — approved + own pending with status badge
 - Profile with avatar, call / WhatsApp (approved); area shown as one field (`English / Urdu` when both exist)
 - Single-page add/edit form with EN/UR fields
+- Delete (admin/approval) removes from live `saliks` and archives to Firestore `delete_saliks` (not hard-erased)
 - Duplicate mobile or name+father blocked on create/update/approve (among approved)
 - Editors: add only; message *Submitted for approval*
 
@@ -70,47 +71,40 @@ Open **Saliks → copy icon** → pick **Keep this record** → **Merge & remove
 - Bilingual UI — English + Urdu (RTL)
 - Dark mode
 - **Offline-first** — SQLite (Drift) cache + sync queue
-- **Offline login** — CMS staff pre-seeded locally per environment (dev vs prod passwords)
-- **Auto-sync** — background sync after login; **Sync now** in Settings
+- **Offline login** — after first online Firebase login; user + roster cached in Drift
+- **Manual sync only** — Settings → **Sync now** (no pull-to-refresh / no auto hydrate)
 - Launcher icon from `android/app/src/main/res/` (also used in-app + web/iOS)
 
 ### Environments (dev vs prod)
 
-| Build | Firebase project | Staff emails | Password |
-|-------|------------------|--------------|----------|
-| **dev** | `salikeencms` | `*@dev.cms.com` (see table) | `12345678` |
-| **prod** | `salikeencms-prod` | `*@cms.com` | `cms@1234` |
+| Build | Firebase project | Staff email domain |
+|-------|------------------|--------------------|
+| **dev** | `salikeencms` | `@dev.cms.com` |
+| **prod** | `salikeencms-prod` | `@cms.com` |
 
 `APP_ENV` dart-define + Android flavor must match (`dev`/`dev`, `prod`/`prod`). Default is **dev** so `flutter run` never hits prod by accident.
 
 Optional shared PII crypto key (all installs + .NET must match):
 
-`--dart-define=FIELD_CRYPTO_KEY_BASE64=<base64-of-32-bytes>`
+`--dart-define=FIELD_CRYPTO_KEY_BASE64=<32-byte-base64>`
 
 Dev builds show **Dev App** chip on splash, login, and settings. Prod builds show no env badge.
 
 ### Offline login (CMS staff)
 
-On the login screen, enter **username only** (local part). The app appends the domain automatically:
+On the login screen, enter **username only** (local part). Field stays blank (no hint, no `@domain` suffix). App appends the domain on submit (e.g. `madmin` → `madmin@dev.cms.com` on dev).
 
-| Env | Type | Full email |
-|-----|------|------------|
-| dev | `madmin` | `madmin@dev.cms.com` |
-| prod | `sarkar` | `sarkar@cms.com` |
+**Accounts live only in Firebase Auth + Firestore `users/{uid}`** — create them in Firebase Console (or your backend). No staff list or passwords are hardcoded in the app.
 
-The suffix (`@dev.cms.com` or `@cms.com`) is shown in the email field. You can still paste a full email if needed.
+First login on a device **requires internet**: Firebase Auth + profile read, then password hash and the users roster are cached in Drift. Later logins work offline for that account. Unknown user + offline → blocking dialog ("Internet required").
 
-Staff rosters: [`staff_users_dev.dart`](lib/core/auth/staff_users_dev.dart) and [`staff_users_prod.dart`](lib/core/auth/staff_users_prod.dart), selected at compile time via [`app_config.dart`](lib/core/config/app_config.dart). Written to local Drift on app start via [`local_user_seed.dart`](lib/core/auth/local_user_seed.dart). Passwords in [`seed_credentials.dart`](lib/core/auth/seed_credentials.dart).
-
-Offline `uid` is `local-{email}` until online login binds Firebase Auth `uid` → `users/{uid}` in Firestore + local cache.
-
-**Online** still needs Firebase Auth + matching `users/{uid}` (`name`, `email`, `role`, `gender`).
+Profile fields on `users/{uid}`: `name`, `email`, `role`, `gender` (`Male` / `Female`). Roles: `admin`, `approval`, `editor`.
 
 ### Offline mode and security
 
 - SHA-256 password hash (per-device salt) for offline login
 - **Sign out** before switching users — avoids stale Firebase session
-- **Idle timeout** — 15 minutes without app use signs you out (re-login required)
+- Session stays until **Sign out** (no idle auto-logout)
 - Sync re-auth uses logged-in email only
 - Devices with cached credentials are **trusted**
 - **Firestore PII encryption** — AES-256-GCM client-side on push for name, father, phones, address, reference, notes. Drift local DB stays plaintext (search/sort). Org key stored in Drift `local_app_kv` only (never Firestore). Seed shared key with `--dart-define=FIELD_CRYPTO_KEY_BASE64=<32-byte-base64>` (same string for .NET). Without dart-define, app generates a per-install key. Legacy plaintext docs decrypt as-is until next push. Delete old Console docs `meta/fieldCrypto` and `users/*/private/fieldKey` if present.
@@ -120,10 +114,9 @@ Offline `uid` is `local-{email}` until online login binds Firebase Auth `uid` �
 
 ### Local-first sync
 
-- Login online → one hydrate pull into Drift
 - Browse reads Drift only (no live Firestore listeners)
-- Saves enqueue outbox → background **push only**
-- Pull-to-refresh / Settings **Sync now** → full push + pull
+- Saves enqueue outbox locally (no auto push/pull)
+- Settings **Sync now** → full push + pull
 - Offline / reopen → last cached Drift data
 
 ### Firebase
@@ -133,11 +126,25 @@ Offline `uid` is `local-{email}` until online login binds Firebase Auth `uid` �
 - **Firestore collections:**
   - `saliks` — contacts + approval fields
   - `users` — `name`, `email`, `role`, `gender`
-  - `areas` — area reference data (also in [`reference_data.dart`](lib/core/data/reference_data.dart))
+  - `bazams` — bazam reference (default `i-10` / I-10); areas belong to a bazam via `bazamId`
+  - `areas` — area reference data + `bazamId` (also in [`reference_data.dart`](lib/core/data/reference_data.dart))
   - `meta/seeded` — areas seeded once
-  - `meta/staffProvisioned` — CMS Auth + user profiles provisioned once
+  - `meta/bazamsSeeded` — bookkeeping flag; default bazams are upserted on every admin online login
 
-On first **admin** online login, `SeedService` seeds areas (if needed) and provisions all CMS staff in Firebase Auth + `users/{uid}` (background; login is not blocked).
+On **admin** online login, `SeedService` seeds areas once (`meta/seeded`) and always upserts default bazams (background; login is not blocked). Data sync/pull only when user taps **Sync** (bottom nav or Settings).
+
+**Dashboard:** bazam cards. Tap a bazam → Bazam screen lists all that bazam’s areas → tap area → saliks filtered by area.
+
+**Assign areas to bazams later:** set `areas/{areaId}.bazamId` in Firestore (or backend). New local areas default to `i-10`. Salik saves denormalize `bazamId` from the selected area.
+
+**Add a new bazam in Firebase Console:**
+
+1. Collection `bazams` → add document. Document ID = bazam id (e.g. `g-9`).
+2. Fields: `bazamId` (string, same as doc id), `bazamName` (string, display name).
+3. For each area in that bazam, set `areas/{areaId}.bazamId` to the new id.
+4. Sync (bottom nav **Sync**) or log in online — app pulls `bazams` + areas into local Drift; dashboard bazam cards update automatically.
+
+Default `kBazams` (e.g. `i-10` / I-10) are upserted to Firestore on every **admin** online login (`SeedService`).
 
 **Re-seed canonical areas** (Gulshan, Model Town, etc. from `kAreas` in [`reference_data.dart`](lib/core/data/reference_data.dart)):
 
@@ -186,58 +193,20 @@ Deploy the same [`firestore.rules`](firestore.rules) to **both** Firebase projec
    firebase deploy --only firestore:rules --project salikeencms-prod
    ```
 
-5. **Firebase Auth accounts (dev)** — before first online login, sync staff emails into Firebase Auth:
+5. **Create staff in Firebase** — Authentication (email/password) + Firestore `users/{uid}` with `name`, `email`, `role`, `gender`. No in-app roster.
 
-   ```bash
-   node scripts/sync_dev_firebase_auth.mjs
-   ```
-
-   Without this step, local offline login works but Firestore sync fails until accounts exist.
-
-6. **Staff accounts** — log in once as admin online so `SeedService` provisions the roster:
-   - **Dev:** `madmin@dev.cms.com` / `12345678` on `salikeencms` (provisions all dev accounts)
-   - **Prod:** `sarkar@cms.com` / `cms@1234` on `salikeencms-prod`
-
-7. **Run the app (dev default)**
+6. **Run the app (dev default)**
 
    ```bash
    flutter run --flavor dev --dart-define=APP_ENV=dev
    ```
 
-## CMS staff accounts
+## Staff accounts (Firebase only)
 
-### Development (`salikeencms`)
+Create each staff user in Firebase Console:
 
-QA accounts per role + gender. Password for all: **`12345678`**.
-
-| Email | Role | Gender |
-|-------|------|--------|
-| meditor@dev.cms.com | `editor` | Male |
-| feditor@dev.cms.com | `editor` | Female |
-| mapprove@dev.cms.com | `approval` | Male |
-| fapprove@dev.cms.com | `approval` | Female |
-| madmin@dev.cms.com | `admin` | Male |
-| fadmin@dev.cms.com | `admin` | Female |
-
-### Production (`salikeencms-prod`)
-
-All nine CMS staff (matches Firebase Authentication roster). Password for all: **`cms@1234`**.
-
-| Email | Role | Gender |
-|-------|------|--------|
-| naveed@cms.com | `editor` | Male |
-| ayaz@cms.com | `editor` | Male |
-| mawaz@cms.com | `editor` | Male |
-| imran@cms.com | `editor` | Male |
-| adil@cms.com | `approval` | Male |
-| waheed@cms.com | `approval` | Male |
-| usman@cms.com | `approval` | Male |
-| sarkar@cms.com | `admin` | Male |
-| waqas@cms.com | `admin` | Male |
-
-**Saliks:** no sample contacts bundled. Editors add records; approval approves.
-
-### Firebase `users/{uid}` example
+1. Authentication → Add user (email + password)
+2. Firestore → `users/{uid}` matching Auth uid:
 
 ```json
 {
@@ -248,7 +217,9 @@ All nine CMS staff (matches Firebase Authentication roster). Password for all: *
 }
 ```
 
-Use `approval` or `admin` for other roles. `uid` must match Firebase Authentication user id.
+Use `approval` or `admin` for other roles. Login domain: `@dev.cms.com` (dev) or `@cms.com` (prod).
+
+**Saliks:** no sample contacts bundled. Editors add records; approval approves.
 
 ### Multiple people, same role
 
@@ -274,7 +245,7 @@ flutter build apk --flavor prod --dart-define=APP_ENV=prod --release
 
 Output: `build/app/outputs/flutter-apk/app-prod-release.apk`
 
-`--dart-define=APP_ENV=prod` is required for prod Firebase project + staff roster; flavor alone is not enough.
+`--dart-define=APP_ENV=prod` is required for prod Firebase project; flavor alone is not enough.
 
 ## Salik document fields (reference)
 
@@ -331,13 +302,13 @@ firebase deploy --only firestore:rules --project salikeencms-prod
 |---------|-----|
 | `PERMISSION_DENIED` on salik save | Deploy rules; saliks need `areaId` + `address` (1–50 chars) |
 | `PERMISSION_DENIED` (other) | Verify `users/{uid}` exists with correct `role` + `gender` |
-| Login spinner stuck | Hot restart; ensure online; admin seed runs in background after login |
+| Login spinner stuck | Hot restart; ensure online; area seed runs in background after admin login |
 | Wrong role after login | Sign out; check Firestore `users/{uid}.role`; clear app data if stale offline cache |
 | Editor pending missing | Rebuild app; pending matched by Firebase `uid` / `local-{email}` |
 | Duplicate mobile on save | Same mobile exists among approved saliks — use **Duplicate Data** to merge |
-| Offline login fails | Dev: `*@dev.cms.com` + `12345678`; prod: `@cms.com` + `cms@1234` |
+| Offline login fails | First login needs internet; then cached account works offline |
 | Pending sync not clearing | Settings → Sync now when online |
-| `users/{uid}` missing | Login online once; admin provisions staff; or bootstrap creates doc from local roster |
+| `users/{uid}` missing | Create Auth user + Firestore profile in Console; then login online once |
 
 ## Development
 

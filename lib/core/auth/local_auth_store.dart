@@ -10,10 +10,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/auth/domain/user_role.dart';
 import '../../features/auth/domain/user_session.dart';
 import '../database/app_database.dart';
-import 'seed_credentials.dart';
 
 class OfflineWrongPasswordException implements Exception {
   const OfflineWrongPasswordException();
+}
+
+/// Offline login attempted for an account that has never signed in online
+/// on this device (no local Drift user / password hash).
+class NoLocalUserOfflineException implements Exception {
+  const NoLocalUserOfflineException();
 }
 
 final localAuthStoreProvider = Provider<LocalAuthStore>((ref) {
@@ -207,26 +212,11 @@ class LocalAuthStore {
       attempts.add((email: normalized, password: password));
     }
 
-    if (preferred != null && preferred.isNotEmpty) {
-      if (SeedCredentials.seedEmails.contains(preferred)) {
-        addAttempt(preferred, SeedCredentials.defaultPassword);
-      }
-    }
-
     final prefs = await _prefs;
     final rememberedEmail = prefs.getString(_lastEmailKey);
     final rememberedPassword = prefs.getString(_lastPasswordKey);
     if (rememberedEmail != null && rememberedPassword != null) {
       addAttempt(rememberedEmail, rememberedPassword);
-    }
-
-    final offline = await getActiveOfflineSession();
-    if (offline != null) {
-      final offlinePassword = normalizeEmail(rememberedEmail ?? '') ==
-              normalizeEmail(offline.email)
-          ? (rememberedPassword ?? SeedCredentials.defaultPassword)
-          : SeedCredentials.defaultPassword;
-      addAttempt(offline.email, offlinePassword);
     }
 
     for (final cred in attempts) {

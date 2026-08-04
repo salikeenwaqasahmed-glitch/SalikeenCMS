@@ -10,8 +10,8 @@ import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/domain/user_session.dart';
 import '../../features/saliks/domain/entities/area.dart';
 import '../../features/saliks/domain/entities/approval_status.dart';
+import '../../features/saliks/domain/entities/bazam.dart';
 import '../../features/saliks/domain/entities/salik.dart';
-import '../auth/local_user_seed.dart';
 import '../auth/local_auth_store.dart';
 import '../crypto/field_crypto_key_store.dart';
 import '../data/reference_data.dart';
@@ -213,31 +213,6 @@ class SyncService {
     }
   }
 
-  Future<void> hydrate(UserSession session) async {
-    if (!await _connectivity.isOnline) return;
-    await _authRepo.promoteOfflineSessionIfOnline();
-    if (!await _localAuth.refreshFirebaseAuth(
-      _auth,
-      preferredEmail: session.email,
-    )) {
-      return;
-    }
-    final resolved = await _ensureUserProfile(session);
-    if (resolved == null) return;
-    await _keyStore.ensureKey(resolved);
-    await _adoptRemoteApprovalAhead();
-    await _pushQueue(resolved);
-    await _finalizeSyncQueue();
-    try {
-      await pullFromFirestore(resolved);
-    } on FirebaseException catch (e) {
-      if (e.code != 'permission-denied') rethrow;
-      debugPrint('hydrate pull skipped: ${e.code} ${e.message}');
-    }
-    await _purgeLocalStaleQueue();
-    await _finalizeSyncQueue();
-  }
-
   /// Links Firebase Auth uid to Firestore users/{uid} — required by security rules.
   Future<UserSession?> _ensureUserProfile(UserSession? session) async {
     if (_auth.currentUser == null) return session;
@@ -245,9 +220,7 @@ class SyncService {
     final email = LocalAuthStore.normalizeEmail(
       _auth.currentUser!.email ?? session?.email ?? '',
     );
-    final hint = session ??
-        await _localAuth.getUserByEmail(email) ??
-        LocalUserSeed.profileForEmail(email);
+    final hint = session ?? await _localAuth.getUserByEmail(email);
     if (hint == null) {
       debugPrint('Sync blocked: no profile source for ${_auth.currentUser!.uid}');
       return null;
@@ -278,7 +251,7 @@ class SyncService {
 
   Future<void> _pushQueue(UserSession session) async {
     final items = await _db.pendingSyncItems();
-    const priority = {'areas': 0, 'saliks': 1};
+    const priority = {'bazams': 0, 'areas': 1, 'saliks': 2};
     items.sort((a, b) {
       final left = priority[a.collection] ?? 9;
       final right = priority[b.collection] ?? 9;
@@ -315,6 +288,12 @@ class SyncService {
               jsonDecode(item.payloadJson) as Map,
             );
             await _pushArea(item.operation, item.docId, decoded);
+            await _db.removeSyncItem(item.id);
+          case 'bazams':
+            final decoded = Map<String, dynamic>.from(
+              jsonDecode(item.payloadJson) as Map,
+            );
+            await _pushBazam(item.operation, item.docId, decoded);
             await _db.removeSyncItem(item.id);
         }
       } catch (e) {
@@ -441,9 +420,7 @@ class SyncService {
       return false;
     }
 
-    final payload = operation == 'delete'
-        ? {'salikId': item.docId}
-        : _salikPayloadForPush(local.toSalik());
+    final payload = _salikPayloadForPush(local.toSalik());
 
     await _pushSalik(operation, item.docId, payload);
     await _db.removeSyncItem(item.id);
@@ -744,6 +721,21 @@ class SyncService {
         }
         await _cacheSalik(_salikFromFirestoreMap(clean, id: docId));
       case 'delete':
+        // Archive into delete_saliks, then remove from live saliks.
+        final archive = Map<String, dynamic>.from(clean);
+        if (archive.isEmpty) {
+          final existing = await ref.get();
+          if (existing.exists && existing.data() != null) {
+            archive.addAll(existing.data()!);
+          }
+        }
+        archive['salikId'] = docId;
+        archive['deletedAt'] = FieldValue.serverTimestamp();
+        final deletedBy = _auth.currentUser?.uid;
+        if (deletedBy != null && deletedBy.isNotEmpty) {
+          archive['deletedByUid'] = deletedBy;
+        }
+        await _firestore.collection('delete_saliks').doc(docId).set(archive);
         await ref.delete();
         await _db.deleteSalikLocal(docId);
         await _db.removeSyncItemsForDoc('saliks', docId);
@@ -772,9 +764,33 @@ class SyncService {
     }
   }
 
+  Future<void> _pushBazam(
+    String operation,
+    String docId,
+    Map<String, dynamic> payload,
+  ) async {
+    final ref = _firestore.collection('bazams').doc(docId);
+    switch (operation) {
+      case 'create':
+        await ref.set(payload);
+        await _db.upsertBazam(
+          bazamToCompanion(Bazam.fromMap(payload), syncStatus: synced),
+        );
+      case 'update':
+        await ref.set(payload, SetOptions(merge: true));
+        await _db.upsertBazam(
+          bazamToCompanion(Bazam.fromMap(payload), syncStatus: synced),
+        );
+      case 'delete':
+        await ref.delete();
+        await _db.deleteBazamLocal(docId);
+    }
+  }
+
   Future<void> pullFromFirestore(UserSession session) async {
     if (!await _connectivity.isOnline) return;
 
+    await _pullBazams();
     await _pullSaliks(session);
     await _pullAreas();
     _invalidateLocationProviders();
@@ -851,6 +867,11 @@ class SyncService {
         await _db.removeSyncItemsForDoc('areas', row.areaId);
       }
     }
+    for (final row in await _db.getAllBazams()) {
+      if (row.syncStatus == synced) {
+        await _db.removeSyncItemsForDoc('bazams', row.bazamId);
+      }
+    }
   }
 
   /// Clear queue rows that are redundant or already on Firestore.
@@ -863,6 +884,8 @@ class SyncService {
           await _finalizeSalikQueueItem(item);
         case 'areas':
           await _finalizeAreaQueueItem(item);
+        case 'bazams':
+          await _finalizeBazamQueueItem(item);
         default:
           debugPrint('Drop unknown sync item ${item.collection}/${item.docId}');
           await _db.removeSyncItem(item.id);
@@ -878,6 +901,23 @@ class SyncService {
     }
     if (local.syncStatus == synced) {
       await _db.removeSyncItemsForDoc('saliks', item.docId);
+      return;
+    }
+
+    // Never overwrite a pending delete with a server snapshot.
+    if (local.syncStatus == pendingDelete || item.operation == 'delete') {
+      if (!await _connectivity.isOnline) return;
+      try {
+        final snap =
+            await _firestore.collection('saliks').doc(item.docId).get();
+        if (!snap.exists) {
+          await _db.deleteSalikLocal(item.docId);
+          await _db.removeSyncItemsForDoc('saliks', item.docId);
+        }
+        // Doc still on server — leave queue for next push.
+      } catch (e) {
+        debugPrint('Finalize delete salik ${item.docId}: $e');
+      }
       return;
     }
 
@@ -933,6 +973,58 @@ class SyncService {
     }
   }
 
+  Future<void> _finalizeBazamQueueItem(SyncQueueData item) async {
+    final local = await _db.getBazamById(item.docId);
+    if (local == null && item.retryCount > 0) {
+      await _db.removeSyncItem(item.id);
+      return;
+    }
+    if (local?.syncStatus == synced) {
+      await _db.removeSyncItemsForDoc('bazams', item.docId);
+      return;
+    }
+
+    if (!await _connectivity.isOnline) return;
+
+    try {
+      final snap = await _firestore.collection('bazams').doc(item.docId).get();
+      if (!snap.exists) return;
+      final bazam = Bazam.fromMap(snap.data()!, id: item.docId);
+      await _db.upsertBazam(bazamToCompanion(bazam, syncStatus: synced));
+      await _db.removeSyncItemsForDoc('bazams', item.docId);
+    } catch (e) {
+      debugPrint('Finalize bazam queue ${item.docId}: $e');
+    }
+  }
+
+  Future<void> _pullBazams() async {
+    final snapshot = await _firestore.collection('bazams').get();
+    final serverIds = snapshot.docs.map((doc) => doc.id).toSet();
+
+    if (snapshot.docs.isEmpty) {
+      for (final bazam in kBazams) {
+        await _db.upsertBazam(bazamToCompanion(bazam));
+      }
+      return;
+    }
+
+    for (final doc in snapshot.docs) {
+      try {
+        final bazam = Bazam.fromMap(doc.data(), id: doc.id);
+        await _db.upsertBazam(bazamToCompanion(bazam));
+      } catch (e) {
+        debugPrint('Skip invalid bazam ${doc.id}: $e');
+      }
+    }
+
+    for (final row in await _db.getAllBazams()) {
+      if (row.syncStatus != synced) continue;
+      if (!serverIds.contains(row.bazamId)) {
+        await _db.deleteBazamLocal(row.bazamId);
+      }
+    }
+  }
+
   Future<void> _pullAreas() async {
     final snapshot = await _firestore.collection('areas').get();
     final serverIds = snapshot.docs.map((doc) => doc.id).toSet();
@@ -954,7 +1046,9 @@ class SyncService {
               Area(
                 areaId: doc.id,
                 areaName: canonical.areaName,
-                isMajor: canonical.isMajor,
+                bazamId: area.bazamId.isNotEmpty
+                    ? area.bazamId
+                    : canonical.bazamId,
               ),
               syncStatus: aliasSynced,
             ),

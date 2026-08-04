@@ -35,4 +35,9 @@ class IconColors {
     final color = colorIndex != null ? alternating(colorIndex) : forIcon(data);
     return Icon(data, size: size, color: color);
   }
+
+  static Color auto() {
+  final index = DateTime.now().millisecondsSinceEpoch ~/ 3000;
+  return palette[index % palette.length];
+}
 }

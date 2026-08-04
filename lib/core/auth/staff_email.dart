@@ -45,6 +45,3 @@ String? staffEmailLocalPartValidator(String? value, AppLocalizations l10n) {
   }
   return null;
 }
-
-String loginEmailHint() =>
-    AppConfig.isProd ? 'sarkar' : 'madmin';

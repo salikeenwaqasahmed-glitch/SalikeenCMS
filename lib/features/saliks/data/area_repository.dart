@@ -1,51 +1,72 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/data/reference_data.dart';
 import '../../../core/database/app_database.dart';
-import '../../../core/network/connectivity_service.dart';
-import '../../../core/sync/sync_service.dart';
 import '../domain/entities/area.dart';
+import '../domain/entities/bazam.dart';
 
 final areaRepositoryProvider = Provider<AreaRepository>((ref) {
   return AreaRepository(
     ref.watch(appDatabaseProvider),
-    ref.watch(connectivityServiceProvider),
-    ref.watch(syncServiceProvider),
   );
 });
 
 class AreaRepository {
-  AreaRepository(
-    this._db,
-    this._connectivity,
-    this._sync,
-  );
+  AreaRepository(this._db);
 
   final AppDatabase _db;
-  final ConnectivityService _connectivity;
-  final SyncService _sync;
   final _uuid = const Uuid();
+
+  static Area _fromRow(LocalArea r) {
+    final bazamId = r.bazamId.trim().isEmpty ? kDefaultBazamId : r.bazamId;
+    return Area(
+      areaId: r.areaId,
+      areaName: r.areaName,
+      bazamId: bazamId,
+    );
+  }
 
   Stream<List<Area>> watchAreas() {
     return _db.watchAllAreas().map((rows) {
       final areas = rows
           .where((r) => r.syncStatus != pendingDelete && r.syncStatus != aliasSynced)
-          .map(
-            (r) => Area(
-              areaId: r.areaId,
-              areaName: r.areaName,
-              isMajor: r.isMajor,
-            ),
-          )
+          .map(_fromRow)
           .toList()
         ..sort((a, b) => a.areaName.compareTo(b.areaName));
       if (areas.isNotEmpty) return areas;
       return [...kAreas]
         ..sort((a, b) => a.areaName.compareTo(b.areaName));
     });
+  }
+
+  Stream<List<Bazam>> watchBazams() {
+    return _db.watchAllBazams().map((rows) {
+      final bazams = rows
+          .where((r) => r.syncStatus != pendingDelete)
+          .map(
+            (r) => Bazam(
+              bazamId: r.bazamId,
+              bazamName: r.bazamName,
+            ),
+          )
+          .toList()
+        ..sort((a, b) => a.bazamName.compareTo(b.bazamName));
+      if (bazams.isNotEmpty) return bazams;
+      return [...kBazams];
+    });
+  }
+
+  Future<Bazam?> resolveBazam(String bazamId) async {
+    if (bazamId.isEmpty) return null;
+    final canonical = findBazam(bazamId);
+    if (canonical != null) return canonical;
+
+    final row = await _db.getBazamById(bazamId);
+    if (row != null && row.syncStatus != pendingDelete) {
+      return Bazam(bazamId: row.bazamId, bazamName: row.bazamName);
+    }
+    return null;
   }
 
   Future<Area?> resolveArea(String areaId) async {
@@ -56,11 +77,7 @@ class AreaRepository {
 
     final row = await _db.getAreaById(areaId);
     if (row != null && row.syncStatus != pendingDelete) {
-      return Area(
-        areaId: row.areaId,
-        areaName: row.areaName,
-        isMajor: row.isMajor,
-      );
+      return _fromRow(row);
     }
 
     return null;
@@ -71,14 +88,15 @@ class AreaRepository {
     if (rows.isEmpty) return kAreas;
     return rows
         .where((r) => r.syncStatus != pendingDelete && r.syncStatus != aliasSynced)
-        .map(
-          (r) => Area(
-            areaId: r.areaId,
-            areaName: r.areaName,
-            isMajor: r.isMajor,
-          ),
-        )
+        .map(_fromRow)
         .toList();
+  }
+
+  Future<List<Area>> areasForBazam(String bazamId) async {
+    final id = bazamId.trim().isEmpty ? kDefaultBazamId : bazamId.trim();
+    final areas = await _allAreasLocal();
+    return areas.where((a) => a.bazamId == id).toList()
+      ..sort((a, b) => a.areaName.compareTo(b.areaName));
   }
 
   Future<Area?> findAreaByName(String name) async {
@@ -95,6 +113,7 @@ class AreaRepository {
 
   Future<Area> createArea({
     required String name,
+    String bazamId = kDefaultBazamId,
   }) async {
     final existing = await findAreaByName(name);
     if (existing != null) return existing;
@@ -103,6 +122,7 @@ class AreaRepository {
     final area = Area(
       areaId: id,
       areaName: name.trim(),
+      bazamId: bazamId.trim().isEmpty ? kDefaultBazamId : bazamId.trim(),
     );
     await _db.upsertArea(areaToCompanion(area, syncStatus: pendingCreate));
     await _db.enqueueSync(
@@ -111,9 +131,6 @@ class AreaRepository {
       docId: id,
       payload: area.toMap(),
     );
-    if (await _connectivity.isOnline) {
-      unawaited(_sync.syncPushOnly());
-    }
     return area;
   }
 }

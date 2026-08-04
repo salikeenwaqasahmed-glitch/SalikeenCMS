@@ -6,8 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/local_auth_store.dart';
-import '../../../core/auth/local_user_seed.dart';
-import '../../../core/auth/seed_credentials.dart';
 import '../../../core/network/connectivity_service.dart';
 import '../../../core/utils/access_control.dart';
 import '../domain/user_session.dart';
@@ -68,7 +66,7 @@ class AuthRepository {
   bool _loginAttemptInProgress = false;
 
   /// Keeps [sessionStream] on [session] while Firebase Auth is temporarily
-  /// switched (e.g. staff provisioning loop).
+  /// switched (e.g. profile sync / hydrate).
   UserSession? _pinnedSession;
 
   void pinSession(UserSession session) {
@@ -387,46 +385,6 @@ class AuthRepository {
 
   static const _onlineSignInTimeout = Duration(seconds: 10);
 
-  Future<void> _ensureKnownStaffLocalAccount(
-    String email,
-    String password,
-  ) async {
-    final profile = LocalUserSeed.profileForEmail(email);
-    if (profile == null) return;
-
-    final existing = await _localAuth.getUserByEmail(email);
-    if (existing != null) return;
-
-    await _localAuth.ensureLocalUser(
-      session: UserSession(
-        uid: 'local-$email',
-        name: profile.name,
-        email: email,
-        role: profile.role,
-        gender: profile.gender,
-      ),
-      password: password,
-      refreshPassword: true,
-    );
-  }
-
-  Future<bool> _repairSeedPasswordIfNeeded(
-    String email,
-    String password,
-    UserSession? localSession,
-  ) async {
-    if (localSession == null) return false;
-    if (LocalUserSeed.profileForEmail(email) == null) return false;
-    if (password != SeedCredentials.defaultPassword) return false;
-
-    await _localAuth.ensureLocalUser(
-      session: localSession,
-      password: password,
-      refreshPassword: true,
-    );
-    return _localAuth.verifyPassword(email, password);
-  }
-
   Future<void> _clearSessionForLoginAttempt() async {
     _offlineSessionActive = false;
     _stickySession = null;
@@ -493,19 +451,9 @@ class AuthRepository {
       await _clearSessionForLoginAttempt();
 
       final normalizedEmail = LocalAuthStore.normalizeEmail(email);
-      await _ensureKnownStaffLocalAccount(normalizedEmail, password);
-
-      var localSession = await _localAuth.getUserByEmail(normalizedEmail);
-      var localPasswordOk =
+      final localSession = await _localAuth.getUserByEmail(normalizedEmail);
+      final localPasswordOk =
           await _localAuth.verifyPassword(normalizedEmail, password);
-
-      if (!localPasswordOk) {
-        localPasswordOk = await _repairSeedPasswordIfNeeded(
-          normalizedEmail,
-          password,
-          localSession,
-        );
-      }
 
       final UserSession session;
       if (localPasswordOk && localSession != null) {
@@ -526,8 +474,14 @@ class AuthRepository {
             'Login timed out. Check connection and retry.',
           ),
         );
+      } else if (localSession == null) {
+        throw const NoLocalUserOfflineException();
       } else {
         throw const OfflineWrongPasswordException();
+      }
+
+      if (await _connectivity.isOnline) {
+        await cacheUsersRoster();
       }
 
       _notifySessionChanged();
@@ -560,24 +514,14 @@ class AuthRepository {
       password: password,
     );
     final uid = cred.user!.uid;
-    final normalizedEmail = LocalAuthStore.normalizeEmail(email);
-    final source = await _profileSourceForEmail(normalizedEmail);
-    if (source == null) {
+
+    final doc = await _firestore.collection('users').doc(uid).get();
+    if (!doc.exists || doc.data() == null) {
       await _auth.signOut();
       throw const ProfileNotFoundException();
     }
 
-    final doc = await _firestore.collection('users').doc(uid).get();
-    final session = doc.exists
-        ? UserSession.fromMap(uid, doc.data()!)
-        : UserSession(
-            uid: uid,
-            name: source.name,
-            email: normalizedEmail,
-            role: source.role,
-            gender: UserSession.normalizeGender(source.gender),
-          );
-
+    final session = UserSession.fromMap(uid, doc.data()!);
     return syncUserProfileWithFirebase(session, password: password);
   }
 
@@ -600,12 +544,11 @@ class AuthRepository {
 
     final ref = _firestore.collection('users').doc(uid);
     final doc = await ref.get();
-    final demo = LocalUserSeed.profileForEmail(email);
 
     final UserSession profile;
     if (doc.exists) {
       profile = UserSession.fromMap(uid, doc.data()!);
-      if (_needsProfileRepair(source, profile, demo)) {
+      if (_needsProfileRepair(source, profile)) {
         final repaired = UserSession(
           uid: uid,
           name: source.name.isNotEmpty ? source.name : profile.name,
@@ -665,13 +608,8 @@ class AuthRepository {
     return false;
   }
 
-  bool _needsProfileRepair(
-    UserSession local,
-    UserSession remote,
-    UserSession? demo,
-  ) {
+  bool _needsProfileRepair(UserSession local, UserSession remote) {
     if (_shouldRepairUserProfile(local, remote)) return true;
-    if (demo == null) return false;
     if (local.role != remote.role) return true;
     final remoteGender = UserSession.normalizeGender(remote.gender);
     final localGender = UserSession.normalizeGender(local.gender);
@@ -682,9 +620,27 @@ class AuthRepository {
     String email, {
     UserSession? fallback,
   }) async {
-    return await _localAuth.getUserByEmail(email) ??
-        LocalUserSeed.profileForEmail(email) ??
-        fallback;
+    return await _localAuth.getUserByEmail(email) ?? fallback;
+  }
+
+  /// Cache all Firestore users/{uid} profiles locally (no passwords).
+  Future<void> cacheUsersRoster() async {
+    if (!await _connectivity.isOnline) return;
+    try {
+      final snap = await _firestore.collection('users').get();
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        if (data.isEmpty) continue;
+        try {
+          final session = UserSession.fromMap(doc.id, data);
+          await _localAuth.saveUser(session);
+        } catch (e) {
+          debugPrint('cacheUsersRoster skip ${doc.id}: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('cacheUsersRoster failed: $e');
+    }
   }
 
   Future<bool> hasPersistedLoginIntent() async {

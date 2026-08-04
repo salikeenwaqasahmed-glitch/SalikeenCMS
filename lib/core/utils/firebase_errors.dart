@@ -26,6 +26,9 @@ String mapFirebaseError(Object error, AppLocalizations l10n) {
   if (error is OfflineWrongPasswordException) {
     return l10n.t('offline_wrong_password');
   }
+  if (error is NoLocalUserOfflineException) {
+    return l10n.t('first_login_online_body');
+  }
   if (error is FirebaseAuthFailedException) {
     return l10n.t('error_firebase_auth');
   }

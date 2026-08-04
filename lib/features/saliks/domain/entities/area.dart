@@ -1,28 +1,30 @@
 import '../../../../core/utils/text_field_merge.dart';
+import 'bazam.dart';
 
 class Area {
   const Area({
     required this.areaId,
     required this.areaName,
-    this.isMajor = false,
+    this.bazamId = kDefaultBazamId,
   });
 
   final String areaId;
   final String areaName;
-  final bool isMajor;
+  final String bazamId;
 
   factory Area.fromMap(Map<String, dynamic> map, {String? id}) {
     final areaId = (map['areaId'] as String?) ?? id;
     if (areaId == null || areaId.isEmpty) {
       throw const FormatException('Area document missing areaId');
     }
+    final rawBazam = (map['bazamId'] as String?)?.trim() ?? '';
     return Area(
       areaId: areaId,
       areaName: mergeLegacyBilingual(
         primary: map['areaName'] as String? ?? '',
         secondary: map['areaNameUrdu'] as String? ?? '',
       ),
-      isMajor: map['isMajor'] as bool? ?? false,
+      bazamId: rawBazam.isEmpty ? kDefaultBazamId : rawBazam,
     );
   }
 
@@ -32,7 +34,7 @@ class Area {
       'areaId': areaId,
       if (split.english.isNotEmpty) 'areaName': split.english,
       if (split.urdu.isNotEmpty) 'areaNameUrdu': split.urdu,
-      'isMajor': isMajor,
+      'bazamId': bazamId.isEmpty ? kDefaultBazamId : bazamId,
     };
   }
 }

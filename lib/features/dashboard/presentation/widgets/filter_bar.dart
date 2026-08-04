@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/data/reference_data.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/text_field_merge.dart';
 import '../../../../core/widgets/app_text.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../saliks/domain/entities/area.dart';
+import '../../../saliks/domain/entities/bazam.dart';
 import '../../../saliks/presentation/providers/area_provider.dart';
 import '../../../saliks/presentation/providers/salik_provider.dart';
 
@@ -20,6 +22,16 @@ class FilterBar extends ConsumerWidget {
     final session = ref.watch(currentSessionProvider);
     final notifier = ref.read(salikFilterProvider.notifier);
     final areas = ref.watch(areasProvider).valueOrNull ?? kAreas;
+    final bazams = ref.watch(bazamsProvider).valueOrNull ?? kBazams;
+    final isUrdu = Localizations.localeOf(context).languageCode == 'ur';
+
+    final scopedAreas = filter.bazamId == 'all'
+        ? areas
+        : areas.where((a) => a.bazamId == filter.bazamId).toList();
+
+    final areaValue = scopedAreas.any((a) => a.areaId == filter.areaId)
+        ? filter.areaId
+        : 'all';
 
     return Card(
       child: Padding(
@@ -28,14 +40,37 @@ class FilterBar extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _FilterDropdown(
-              label: l10n.t('area'),
-              value: filter.areaId,
+              label: l10n.t('bazam'),
+              value: filter.bazamId,
               items: [
-                DropdownMenuItem(value: 'all', child: AppText.dropdownItem(l10n.t('all'))),
-                ...areas.map(
+                DropdownMenuItem(
+                  value: 'all',
+                  child: AppText.dropdownItem(l10n.t('all_bazams')),
+                ),
+                ...bazams.map(
+                  (bazam) => DropdownMenuItem(
+                    value: bazam.bazamId,
+                    child: AppText.dropdownItem(bazam.bazamName),
+                  ),
+                ),
+              ],
+              onChanged: notifier.setBazam,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _FilterDropdown(
+              label: l10n.t('area'),
+              value: areaValue,
+              items: [
+                DropdownMenuItem(
+                  value: 'all',
+                  child: AppText.dropdownItem(l10n.t('all_areas')),
+                ),
+                ...scopedAreas.map(
                   (area) => DropdownMenuItem(
                     value: area.areaId,
-                    child: AppText.dropdownItem(area.areaName),
+                    child: AppText.dropdownItem(
+                      _areaLabel(area, isUrdu: isUrdu),
+                    ),
                   ),
                 ),
               ],
@@ -48,7 +83,10 @@ class FilterBar extends ConsumerWidget {
                 label: l10n.t('gender'),
                 value: filter.genderId,
                 items: [
-                  DropdownMenuItem(value: 'all', child: AppText.dropdownItem(l10n.t('all'))),
+                  DropdownMenuItem(
+                    value: 'all',
+                    child: AppText.dropdownItem(l10n.t('all')),
+                  ),
                   DropdownMenuItem(
                     value: 'Male',
                     child: AppText.dropdownItem(l10n.t('male')),
@@ -66,7 +104,10 @@ class FilterBar extends ConsumerWidget {
               label: l10n.t('active'),
               value: filter.status,
               items: [
-                DropdownMenuItem(value: 'all', child: AppText.dropdownItem(l10n.t('all'))),
+                DropdownMenuItem(
+                  value: 'all',
+                  child: AppText.dropdownItem(l10n.t('all')),
+                ),
                 DropdownMenuItem(
                   value: 'active',
                   child: AppText.dropdownItem(l10n.t('active')),
@@ -100,6 +141,9 @@ class _FilterDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final itemValues = items.map((i) => i.value).whereType<String>().toSet();
+    final safeValue = itemValues.contains(value) ? value : 'all';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -114,7 +158,7 @@ class _FilterDropdown extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
-          initialValue: value,
+          initialValue: safeValue,
           isExpanded: true,
           decoration: const InputDecoration(
             isDense: true,
@@ -134,7 +178,9 @@ class _FilterDropdown extends StatelessWidget {
 }
 
 class FilterChips extends ConsumerWidget {
-  const FilterChips({super.key});
+  const FilterChips({super.key, this.showClearAll = true});
+
+  final bool showClearAll;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -142,36 +188,56 @@ class FilterChips extends ConsumerWidget {
     final filter = ref.watch(salikFilterProvider);
     final notifier = ref.read(salikFilterProvider.notifier);
     final areas = ref.watch(areasProvider).valueOrNull ?? kAreas;
+    final bazams = ref.watch(bazamsProvider).valueOrNull ?? kBazams;
+    final isUrdu = Localizations.localeOf(context).languageCode == 'ur';
+
+    Widget chip(String label, VoidCallback onDeleted) {
+      return Padding(
+        padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
+        child: InputChip(
+          label: AppText(label, maxLines: 1),
+          onDeleted: onDeleted,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          padding: EdgeInsets.zero,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+        ),
+      );
+    }
 
     final chips = <Widget>[
+      if (filter.bazamId != 'all')
+        chip(
+          _bazamChipLabel(bazamId: filter.bazamId, bazams: bazams),
+          () => notifier.setBazam('all'),
+        ),
       if (filter.areaId != 'all')
-        Chip(
-          label: AppText(
-            _areaChipLabel(
-              areaId: filter.areaId,
-              areas: areas,
-            ),
-            maxLines: 1,
+        chip(
+          _areaChipLabel(
+            areaId: filter.areaId,
+            areas: areas,
+            isUrdu: isUrdu,
           ),
-          onDeleted: () => notifier.setArea('all'),
+          () => notifier.setArea('all'),
         ),
       if (filter.genderId != 'all')
-        Chip(
-          label: AppText(
-            filter.genderId == 'Male' ? l10n.t('male') : l10n.t('female'),
-            maxLines: 1,
-          ),
-          onDeleted: () => notifier.setGender('all'),
+        chip(
+          filter.genderId == 'Male' ? l10n.t('male') : l10n.t('female'),
+          () => notifier.setGender('all'),
         ),
       if (filter.status != 'all')
-        Chip(
-          label: AppText(
-            filter.status == 'active'
-                ? l10n.t('active')
-                : l10n.t('inactive'),
-            maxLines: 1,
+        chip(
+          filter.status == 'active' ? l10n.t('active') : l10n.t('inactive'),
+          () => notifier.setStatus('all'),
+        ),
+      if (showClearAll && filter.activeAdvancedFilterCount > 0)
+        TextButton(
+          onPressed: notifier.clearAdvancedFilters,
+          style: TextButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
           ),
-          onDeleted: () => notifier.setStatus('all'),
+          child: Text(l10n.t('clear_filters')),
         ),
     ];
 
@@ -179,18 +245,32 @@ class FilterChips extends ConsumerWidget {
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsetsDirectional.symmetric(horizontal: AppSpacing.md),
       child: Row(children: chips),
     );
   }
 }
 
+String _areaLabel(Area area, {required bool isUrdu}) {
+  final label = localeBilingualLabel(area.areaName, isUrdu: isUrdu).trim();
+  return label.isNotEmpty ? label : area.areaName.trim();
+}
+
 String _areaChipLabel({
   required String areaId,
   required List<Area> areas,
+  required bool isUrdu,
 }) {
   final area = findAreaInList(areaId, areas);
   if (area == null) return areaId;
-  final label = area.areaName.trim();
-  return label.isNotEmpty ? label : areaId;
+  return _areaLabel(area, isUrdu: isUrdu);
+}
+
+String _bazamChipLabel({
+  required String bazamId,
+  required List<Bazam> bazams,
+}) {
+  final bazam = findBazamInList(bazamId, bazams);
+  if (bazam == null) return bazamId;
+  final name = bazam.bazamName.trim();
+  return name.isNotEmpty ? name : bazamId;
 }

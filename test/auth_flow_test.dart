@@ -2,16 +2,14 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salik_management_system/core/auth/local_auth_store.dart';
-import 'package:salik_management_system/core/auth/local_user_seed.dart';
-import 'package:salik_management_system/core/auth/seed_credentials.dart';
-import 'package:salik_management_system/core/auth/staff_users.dart';
-import 'package:salik_management_system/core/config/app_config.dart';
 import 'package:salik_management_system/core/database/app_database.dart';
+import 'package:salik_management_system/features/auth/domain/user_role.dart';
+import 'package:salik_management_system/features/auth/domain/user_session.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('staff seed credentials', () {
+  group('local auth store (no roster seed)', () {
     late AppDatabase db;
     late LocalAuthStore store;
 
@@ -19,34 +17,43 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       db = AppDatabase.forTesting(NativeDatabase.memory());
       store = LocalAuthStore(db);
-      await LocalUserSeed.ensureUsers(store);
     });
 
     tearDown(() async {
       await db.close();
     });
 
-    test('dev madmin password verifies when APP_ENV is dev', () async {
-      expect(AppConfig.isDev, isTrue);
+    test('unknown email has no local user', () async {
+      expect(await store.getUserByEmail('nobody@dev.cms.com'), isNull);
       expect(
-        await store.verifyPassword('madmin@dev.cms.com', SeedCredentials.defaultPassword),
-        isTrue,
+        await store.verifyPassword('nobody@dev.cms.com', 'any'),
+        isFalse,
       );
     });
 
-    test('all dev roster emails exist locally after seed', () async {
-      for (final staff in kStaffUsers) {
-        final user = await store.getUserByEmail(staff.email);
-        expect(user, isNotNull, reason: 'missing ${staff.email}');
-        expect(user!.uid, 'local-${staff.email.toLowerCase()}');
-      }
-    });
-
-    test('wrong password fails verify', () async {
+    test('saved user with password verifies offline', () async {
+      await store.saveUser(
+        const UserSession(
+          uid: 'uid-1',
+          name: 'Admin',
+          email: 'madmin@dev.cms.com',
+          role: UserRole.admin,
+          gender: 'Male',
+        ),
+        password: 'Secret123!',
+      );
+      expect(
+        await store.verifyPassword('madmin@dev.cms.com', 'Secret123!'),
+        isTrue,
+      );
       expect(
         await store.verifyPassword('madmin@dev.cms.com', 'wrong'),
         isFalse,
       );
+    });
+
+    test('NoLocalUserOfflineException is distinct type', () {
+      expect(const NoLocalUserOfflineException(), isA<Exception>());
     });
   });
 }

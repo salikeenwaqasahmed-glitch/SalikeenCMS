@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../../auth/domain/user_session.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../../core/data/reference_data.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/text_field_merge.dart';
 import '../../data/salik_repository.dart';
+import '../../domain/entities/area.dart';
 import '../../domain/entities/salik.dart';
 import '../../domain/entities/salik_duplicate_group.dart';
 import 'area_provider.dart';
@@ -97,6 +99,7 @@ class SalikFilter {
   const SalikFilter({
     this.search = '',
     this.areaId = 'all',
+    this.bazamId = 'all',
     this.genderId = 'all',
     this.status = 'all',
     this.segment = SalikBrowseSegment.all,
@@ -104,13 +107,25 @@ class SalikFilter {
 
   final String search;
   final String areaId;
+  final String bazamId;
   final String genderId;
   final String status;
   final SalikBrowseSegment segment;
 
+  /// Location / status / gender only (not segment or search).
+  int get activeAdvancedFilterCount {
+    var n = 0;
+    if (bazamId != 'all') n++;
+    if (areaId != 'all') n++;
+    if (status != 'all') n++;
+    if (genderId != 'all') n++;
+    return n;
+  }
+
   SalikFilter copyWith({
     String? search,
     String? areaId,
+    String? bazamId,
     String? genderId,
     String? status,
     SalikBrowseSegment? segment,
@@ -118,6 +133,7 @@ class SalikFilter {
     return SalikFilter(
       search: search ?? this.search,
       areaId: areaId ?? this.areaId,
+      bazamId: bazamId ?? this.bazamId,
       genderId: genderId ?? this.genderId,
       status: status ?? this.status,
       segment: segment ?? this.segment,
@@ -161,6 +177,17 @@ class SalikFilterNotifier extends StateNotifier<SalikFilter> {
     _resetPage();
   }
 
+  void setBazam(String bazamId) {
+    final keepLocationSegment = state.segment == SalikBrowseSegment.all ||
+        state.segment == SalikBrowseSegment.area;
+    state = state.copyWith(
+      bazamId: bazamId,
+      areaId: 'all',
+      segment: keepLocationSegment ? state.segment : SalikBrowseSegment.all,
+    );
+    _resetPage();
+  }
+
   void setGender(String genderId) {
     state = state.copyWith(genderId: genderId);
     _resetPage();
@@ -172,15 +199,29 @@ class SalikFilterNotifier extends StateNotifier<SalikFilter> {
   }
 
   void setSegment(SalikBrowseSegment segment) {
+    final keepLocation = segment == SalikBrowseSegment.all ||
+        segment == SalikBrowseSegment.area;
     state = state.copyWith(
       segment: segment,
-      areaId: segment == SalikBrowseSegment.area ? state.areaId : 'all',
+      areaId: keepLocation ? state.areaId : 'all',
+      bazamId: keepLocation ? state.bazamId : 'all',
     );
     _resetPage();
   }
 
   void reset() {
     state = const SalikFilter();
+    _resetPage();
+  }
+
+  /// Clears bazam / area / status / gender; keeps search + segment.
+  void clearAdvancedFilters() {
+    state = state.copyWith(
+      bazamId: 'all',
+      areaId: 'all',
+      status: 'all',
+      genderId: 'all',
+    );
     _resetPage();
   }
 }
@@ -212,8 +253,19 @@ void sortSaliksByLocale(List<Salik> saliks, {required bool isUrdu}) {
   });
 }
 
-bool _matchesNonSearchFilters(Salik s, SalikFilter filter) {
+bool _matchesNonSearchFilters(
+  Salik s,
+  SalikFilter filter, {
+  List<Area>? areas,
+}) {
   final matchesArea = filter.areaId == 'all' || s.areaId == filter.areaId;
+  final matchesBazam = filter.bazamId == 'all' ||
+      resolveSalikBazamId(
+            salikBazamId: s.bazamId,
+            areaId: s.areaId,
+            areas: areas,
+          ) ==
+          filter.bazamId;
   final matchesGender =
       filter.genderId == 'all' || s.genderId == filter.genderId;
 
@@ -228,7 +280,11 @@ bool _matchesNonSearchFilters(Salik s, SalikFilter filter) {
     SalikBrowseSegment.sahibMehfil => s.isSahibEMehfil,
   };
 
-  return matchesArea && matchesGender && matchesStatus && matchesSegment;
+  return matchesArea &&
+      matchesBazam &&
+      matchesGender &&
+      matchesStatus &&
+      matchesSegment;
 }
 
 int? _searchTier(Salik s, String q, String rawSearch) {
@@ -250,8 +306,11 @@ List<Salik> applySalikFilters(
   List<Salik> saliks,
   SalikFilter filter, {
   bool isUrdu = false,
+  List<Area>? areas,
 }) {
-  final scoped = saliks.where((s) => _matchesNonSearchFilters(s, filter));
+  final scoped = saliks.where(
+    (s) => _matchesNonSearchFilters(s, filter, areas: areas),
+  );
   final q = filter.search.trim().toLowerCase();
   final rawSearch = filter.search.trim();
 
@@ -301,7 +360,8 @@ final sortedFilteredSaliksProvider = Provider<List<Salik>>((ref) {
   final saliks = ref.watch(saliksStreamProvider).valueOrNull ?? [];
   final filter = ref.watch(salikFilterProvider);
   final isUrdu = ref.watch(appLocalizationsProvider).isUrdu;
-  return applySalikFilters(saliks, filter, isUrdu: isUrdu);
+  final areas = ref.watch(areasProvider).valueOrNull ?? kAreas;
+  return applySalikFilters(saliks, filter, isUrdu: isUrdu, areas: areas);
 });
 
 /// Alias kept for existing call sites; now sorted + ranked.

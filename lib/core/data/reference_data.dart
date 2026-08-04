@@ -1,18 +1,27 @@
 import '../../features/saliks/domain/entities/area.dart';
+import '../../features/saliks/domain/entities/bazam.dart';
 
-const List<Area> kAreas = [
-  Area(areaId: 'a1', areaName: 'Gulshan-e-Iqbal / گلشن اقبال', isMajor: true),
-  Area(areaId: 'a2', areaName: 'Karachi Central / کراچی سینٹرل', isMajor: true),
-  Area(areaId: 'a3', areaName: 'Karachi West / کراچی ویسٹ'),
-  Area(areaId: 'a4', areaName: 'Clifton / کلفٹن'),
-  Area(areaId: 'a5', areaName: 'Model Town / ماڈل ٹاؤن', isMajor: true),
-  Area(areaId: 'a6', areaName: 'Lahore South / لاہور ساؤتھ'),
-  Area(areaId: 'a7', areaName: 'Gulberg / گلبرگ', isMajor: true),
-  Area(areaId: 'a8', areaName: 'F-7/2 / ایف 7/2', isMajor: true),
-  Area(areaId: 'a9', areaName: 'Islamabad North / اسلام آباد نارتھ'),
-  Area(areaId: 'a10', areaName: 'Hayatabad / حیات آباد', isMajor: true),
-  Area(areaId: 'a11', areaName: 'Multan Sector B / ملتان سیکٹر بی'),
+export '../../features/saliks/domain/entities/bazam.dart' show kDefaultBazamId;
+
+const List<Bazam> kBazams = [
+  Bazam(bazamId: kDefaultBazamId, bazamName: 'I-10'),
 ];
+
+const List<Area> kAreas = [];
+
+Bazam? findBazam(String bazamId) {
+  for (final bazam in kBazams) {
+    if (bazam.bazamId == bazamId) return bazam;
+  }
+  return null;
+}
+
+Bazam? findBazamInList(String bazamId, List<Bazam> bazams) {
+  for (final bazam in bazams) {
+    if (bazam.bazamId == bazamId) return bazam;
+  }
+  return findBazam(bazamId);
+}
 
 Area? findArea(String areaId) {
   for (final area in kAreas) {
@@ -68,4 +77,21 @@ Area? findCanonicalAreaMatch(Area area) {
     if (areaNamesOverlap(canonical, area)) return canonical;
   }
   return null;
+}
+
+/// Resolve salik bazam: explicit field, else area ownership, else default.
+String resolveSalikBazamId({
+  required String salikBazamId,
+  required String areaId,
+  List<Area>? areas,
+}) {
+  final explicit = salikBazamId.trim();
+  if (explicit.isNotEmpty) return explicit;
+
+  final area = areas != null
+      ? findAreaInList(areaId, areas)
+      : findArea(areaId);
+  final fromArea = area?.bazamId.trim() ?? '';
+  if (fromArea.isNotEmpty) return fromArea;
+  return kDefaultBazamId;
 }

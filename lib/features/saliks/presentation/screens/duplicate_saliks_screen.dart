@@ -13,7 +13,6 @@ import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/app_text.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/salik_widgets.dart';
-import '../../../../core/sync/sync_refresh.dart';
 import '../../../../core/widgets/offline_cached_banner.dart';
 import '../../../auth/domain/user_session.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -57,24 +56,21 @@ class DuplicateSaliksScreen extends ConsumerWidget {
             return EmptyState(message: l10n.t('no_duplicate_data'));
           }
 
-          return RefreshIndicator(
-            onRefresh: () => pullToRefreshSync(ref, context: context),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              itemCount: groups.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return const Padding(
-                    padding: EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: OfflineCachedBanner(),
-                  );
-                }
-                return _DuplicateGroupCard(
-                  group: groups[index - 1],
-                  session: session,
+          return ListView.builder(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            itemCount: groups.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return const Padding(
+                  padding: EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: OfflineCachedBanner(),
                 );
-              },
-            ),
+              }
+              return _DuplicateGroupCard(
+                group: groups[index - 1],
+                session: session,
+              );
+            },
           );
         },
       ),

@@ -6,8 +6,6 @@ import '../../../../core/router/form_navigation.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/access_control.dart';
 import '../../../../core/utils/firebase_errors.dart';
-import '../../../../core/utils/text_field_merge.dart';
-import '../../../../core/sync/sync_refresh.dart';
 import '../../../../core/widgets/offline_cached_banner.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
@@ -28,7 +26,7 @@ class DashboardScreen extends ConsumerWidget {
     final l10n = context.l10n;
     final session = ref.watch(currentSessionProvider);
     final stats = ref.watch(dashboardStatsProvider);
-    final areaCounts = ref.watch(dashboardAreaCountsProvider);
+    final bazamCounts = ref.watch(dashboardBazamCountsProvider);
     final saliksAsync = ref.watch(saliksStreamProvider);
     final canCreate =
         session != null && AccessControl.canCreate(session.role);
@@ -56,28 +54,21 @@ class DashboardScreen extends ConsumerWidget {
               child: const Icon(Icons.add),
             )
           : null,
-      body: RefreshIndicator(
-        onRefresh: () => pullToRefreshSync(ref, context: context),
-        child: saliksAsync.when(
-          loading: () => const AppLoadingPage(),
-          error: (e, _) => ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            children: [
-              SizedBox(
-                height: MediaQuery.sizeOf(context).height * 0.5,
-                child: Center(
-                  child: AppText(
-                    mapFirebaseError(e, l10n),
-                    textAlign: TextAlign.center,
-                    maxLines: 4,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          data: (_) => ListView(
+      body: saliksAsync.when(
+        loading: () => const AppLoadingPage(),
+        error: (e, _) => Center(
+          child: Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
-            children: [
+            child: AppText(
+              mapFirebaseError(e, l10n),
+              textAlign: TextAlign.center,
+              maxLines: 4,
+            ),
+          ),
+        ),
+        data: (_) => ListView(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: [
               const OfflineCachedBanner(),
               if (session != null) ...[
                 AppText(
@@ -93,7 +84,7 @@ class DashboardScreen extends ConsumerWidget {
                 UserScopeBanner(session: session),
               ],
               const SizedBox(height: AppSpacing.lg),
-              SectionTitle(l10n.t('stats_overview')),
+              SectionTitle(l10n.t('Salikeen overview')),
               const SizedBox(height: AppSpacing.sm),
               Row(
                 children: [
@@ -156,40 +147,29 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-              if (areaCounts.isNotEmpty) ...[
+              if (bazamCounts.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.lg),
-                SectionTitle(l10n.t('stats_by_area')),
+                SectionTitle(l10n.t('Salikeen by bazam')),
                 const SizedBox(height: AppSpacing.sm),
                 SizedBox(
                   height: 128,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
-                    itemCount: areaCounts.length,
+                    itemCount: bazamCounts.length,
                     separatorBuilder: (_, __) =>
                         const SizedBox(width: AppSpacing.sm),
                     itemBuilder: (context, index) {
-                      final area = areaCounts[index];
-                      final isUrdu =
-                          Localizations.localeOf(context).languageCode == 'ur';
-                      final label = localeBilingualLabel(
-                        area.areaName,
-                        isUrdu: isUrdu,
-                      ).trim();
+                      final bazam = bazamCounts[index];
                       return StatCountCard(
                         expanded: false,
                         width: 132,
                         labelMaxLines: 2,
                         labelFontSize: 12,
-                        label: label.isNotEmpty ? label : area.areaName.trim(),
-                        count: area.count,
-                        icon: Icons.location_on,
+                        label: bazam.bazamName,
+                        count: bazam.count,
+                        icon: Icons.groups,
                         colorIndex: index,
-                        onTap: () => _openSaliksFiltered(
-                          ref,
-                          context,
-                          segment: SalikBrowseSegment.area,
-                          areaId: area.areaId,
-                        ),
+                        onTap: () => context.push('/bazams/${bazam.bazamId}'),
                       );
                     },
                   ),
@@ -229,7 +209,6 @@ class DashboardScreen extends ConsumerWidget {
               const SizedBox(height: 80),
             ],
           ),
-        ),
       ),
     );
   }

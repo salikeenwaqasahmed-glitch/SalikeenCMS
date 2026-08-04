@@ -5,6 +5,7 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/saliks/presentation/screens/add_salik_form_screen.dart';
+import '../../features/saliks/presentation/screens/bazam_areas_screen.dart';
 import '../../features/saliks/presentation/screens/duplicate_saliks_screen.dart';
 import '../../features/saliks/presentation/screens/pending_approvals_screen.dart';
 import '../../features/saliks/presentation/screens/salik_directory_screen.dart';
@@ -14,6 +15,7 @@ import '../../features/saliks/presentation/providers/salik_provider.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../localization/app_localizations.dart';
 import '../utils/access_control.dart';
+import '../utils/firebase_errors.dart';
 import '../widgets/offline_banner.dart';
 import '../widgets/salik_widgets.dart';
 
@@ -91,6 +93,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/',
                 builder: (context, state) => const DashboardScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'bazams/:bazamId',
+                    builder: (context, state) {
+                      final id = state.pathParameters['bazamId'] ?? '';
+                      return BazamAreasScreen(bazamId: id);
+                    },
+                  ),
+                ],
               ),
             ],
           ),
@@ -167,13 +178,16 @@ class NavigationShellScaffold extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
   final String location;
 
+  static const _syncDestinationIndex = 3;
+
   bool get _hideBottomNav =>
       location.contains('/saliks/profile/') ||
       location.contains('/saliks/add') ||
       location.contains('/saliks/edit/') ||
       location.contains('/saliks/pending') ||
       location.contains('/saliks/duplicates') ||
-      location.contains('/saliks/message-queue');
+      location.contains('/saliks/message-queue') ||
+      location.contains('/bazams/');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -183,6 +197,16 @@ class NavigationShellScaffold extends ConsumerWidget {
         session != null && AccessControl.canViewPending(session.role);
     final pendingCount =
         canViewPending ? ref.watch(pendingCountProvider) : 0;
+    final syncState = ref.watch(syncNowControllerProvider);
+
+    ref.listen(syncNowControllerProvider, (prev, next) {
+      if (prev?.isLoading == true && next.hasValue) {
+        final result = next.value ?? const SyncNowResult(ok: false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_navSyncSnackMessage(l10n, result))),
+        );
+      }
+    });
 
     Widget saliksNavIcon(IconData icon) {
       if (!canViewPending || pendingCount == 0) {
@@ -192,6 +216,17 @@ class NavigationShellScaffold extends ConsumerWidget {
         count: pendingCount,
         child: Icon(icon),
       );
+    }
+
+    Widget syncNavIcon({required bool selected}) {
+      if (syncState.isLoading) {
+        return const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        );
+      }
+      return Icon(selected ? Icons.sync : Icons.sync_outlined);
     }
 
     return Scaffold(
@@ -205,8 +240,15 @@ class NavigationShellScaffold extends ConsumerWidget {
           ? null
           : NavigationBar(
               selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: (index) =>
-                  navigationShell.goBranch(index, initialLocation: true),
+              onDestinationSelected: (index) {
+                if (index == _syncDestinationIndex) {
+                  if (!syncState.isLoading) {
+                    ref.read(syncNowControllerProvider.notifier).syncNow();
+                  }
+                  return;
+                }
+                navigationShell.goBranch(index, initialLocation: true);
+              },
               destinations: [
                 NavigationDestination(
                   icon: const Icon(Icons.dashboard_outlined),
@@ -223,10 +265,29 @@ class NavigationShellScaffold extends ConsumerWidget {
                   selectedIcon: const Icon(Icons.settings),
                   label: l10n.t('nav_settings'),
                 ),
+                NavigationDestination(
+                  icon: syncNavIcon(selected: false),
+                  selectedIcon: syncNavIcon(selected: true),
+                  label: l10n.t('nav_sync'),
+                ),
               ],
             ),
     );
   }
+}
+
+String _navSyncSnackMessage(AppLocalizations l10n, SyncNowResult result) {
+  if (result.ok) {
+    return l10n.t('sync_success');
+  }
+  final err = result.error;
+  if (err != null) {
+    if (err.contains('permission-denied')) {
+      return '${l10n.t('error_permission_denied')} ${l10n.t('sync_permission_hint')}';
+    }
+    return mapFirebaseError(err, l10n);
+  }
+  return l10n.t('sync_failed');
 }
 
 bool isSubRoute(String location) =>

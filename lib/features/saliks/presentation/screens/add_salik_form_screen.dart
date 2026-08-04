@@ -354,7 +354,7 @@ class _AddSalikFormScreenState extends ConsumerState<AddSalikFormScreen> {
       areaId: area.areaId,
       address: _address.text.trim(),
       genderId: effectiveGender,
-      bazamId: '',
+      bazamId: area.bazamId.isEmpty ? kDefaultBazamId : area.bazamId,
       khanqahId: '',
       salikCategoryId: '',
       dateOfBaith: _dateBaith,

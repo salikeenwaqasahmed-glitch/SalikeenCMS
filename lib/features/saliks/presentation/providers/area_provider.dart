@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/data/reference_data.dart';
 import '../../data/area_repository.dart';
 import '../../domain/entities/area.dart';
+import '../../domain/entities/bazam.dart';
 import '../../domain/entities/salik.dart';
 
 final areaByIdProvider = FutureProvider.family<Area?, String>((ref, areaId) {
@@ -13,6 +14,25 @@ final areaByIdProvider = FutureProvider.family<Area?, String>((ref, areaId) {
 final areasProvider = StreamProvider<List<Area>>((ref) {
   final repo = ref.watch(areaRepositoryProvider);
   return repo.watchAreas();
+});
+
+final bazamsProvider = StreamProvider<List<Bazam>>((ref) {
+  final repo = ref.watch(areaRepositoryProvider);
+  return repo.watchBazams();
+});
+
+final bazamByIdProvider =
+    FutureProvider.family<Bazam?, String>((ref, bazamId) {
+  final repo = ref.watch(areaRepositoryProvider);
+  return repo.resolveBazam(bazamId);
+});
+
+final areasForBazamProvider =
+    Provider.family<List<Area>, String>((ref, bazamId) {
+  final id = bazamId.trim().isEmpty ? kDefaultBazamId : bazamId.trim();
+  final areas = ref.watch(areasProvider).valueOrNull ?? kAreas;
+  return areas.where((a) => a.bazamId == id).toList()
+    ..sort((a, b) => a.areaName.compareTo(b.areaName));
 });
 
 /// Resolves the area shown on the add form area picker.

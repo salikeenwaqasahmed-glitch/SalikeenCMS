@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/auth/local_auth_store.dart';
 import '../../../../core/auth/staff_email.dart';
-import '../../../../core/config/app_config.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/utils/firebase_errors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -71,8 +70,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     ref.listen(authControllerProvider, (prev, next) {
       if (next.hasError) {
+        final err = next.error!;
+        if (err is NoLocalUserOfflineException) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            showDialog<void>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: Text(l10n.t('first_login_online_title')),
+                content: Text(l10n.t('first_login_online_body')),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: Text(l10n.t('ok')),
+                  ),
+                ],
+              ),
+            );
+          });
+        }
         setState(() {
-          _loginError = mapFirebaseError(next.error!, l10n);
+          _loginError = mapFirebaseError(err, l10n);
         });
       } else if (prev?.isLoading == true && next.hasValue) {
         setState(() => _loginError = null);
@@ -153,8 +171,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         controller: _emailController,
                                         decoration: InputDecoration(
                                           labelText: l10n.t('email'),
-                                          hintText: loginEmailHint(),
-                                          suffixText: AppConfig.staffEmailDomain,
                                           prefixIcon: const Icon(
                                             Icons.email_outlined,
                                           ),

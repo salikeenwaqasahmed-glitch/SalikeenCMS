@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,7 +6,6 @@ import 'package:uuid/uuid.dart';
 import '../../../core/auth/local_auth_store.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/network/connectivity_service.dart';
-import '../../../core/sync/sync_service.dart';
 import '../../../core/utils/access_control.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/user_session.dart';
@@ -30,7 +27,6 @@ final salikRepositoryProvider = Provider<SalikRepository>((ref) {
   return SalikRepository(
     ref.watch(appDatabaseProvider),
     ref.watch(connectivityServiceProvider),
-    ref.watch(syncServiceProvider),
     ref.watch(authRepositoryProvider),
     FirebaseFirestore.instance,
   );
@@ -40,14 +36,12 @@ class SalikRepository {
   SalikRepository(
     this._db,
     this._connectivity,
-    this._sync,
     this._auth,
     this._firestore,
   );
 
   final AppDatabase _db;
   final ConnectivityService _connectivity;
-  final SyncService _sync;
   final AuthRepository _auth;
   final FirebaseFirestore _firestore;
   final _uuid = const Uuid();
@@ -386,24 +380,17 @@ class SalikRepository {
       throw DuplicateSalikException(duplicate);
     }
 
-    final prepared = await _sync.prepareApproverSession(session);
-    final canPush = await _sync.shouldPushToServer();
-    if (canPush && prepared.error != null) {
-      throw SalikPermissionException(prepared.error!);
-    }
-    final approver = prepared.session ?? session;
-
     final approverName = _nonEmptyDisplayName(
       await _auth.resolveUserDisplayName(
-        approver.uid,
-        fallback: approver.name,
+        session.uid,
+        fallback: session.name,
       ),
-      approver,
+      session,
     );
     final approved = salik.copyWith(
       approvalStatus: ApprovalStatus.approved,
       isActive: true,
-      approvedByUid: approver.uid,
+      approvedByUid: session.uid,
       approvedByName: approverName,
       approvedAt: DateTime.now().toIso8601String(),
       modifiedDate: DateTime.now().toIso8601String().split('T').first,
@@ -412,16 +399,6 @@ class SalikRepository {
     final wasNeverSynced = resolved.syncStatus == pendingCreate;
     final syncStatus = wasNeverSynced ? pendingCreate : pendingUpdate;
     final operation = wasNeverSynced ? 'create' : 'update';
-
-    if (canPush) {
-      final pushError = await _sync.pushSalikNow(approved);
-      if (pushError != null) {
-        throw SalikPermissionException(pushError);
-      }
-      await _sync.pullFromFirestore(session);
-      await _ensureApprovalPersisted(id, approved);
-      return;
-    }
 
     if (await _db.getSalikById(id) == null) {
       await _db.upsertSalik(
@@ -490,24 +467,17 @@ class SalikRepository {
       throw SalikPermissionException('Gender scope mismatch');
     }
 
-    final prepared = await _sync.prepareApproverSession(session);
-    final canPush = await _sync.shouldPushToServer();
-    if (canPush && prepared.error != null) {
-      throw SalikPermissionException(prepared.error!);
-    }
-    final approver = prepared.session ?? session;
-
     final approverName = _nonEmptyDisplayName(
       await _auth.resolveUserDisplayName(
-        approver.uid,
-        fallback: approver.name,
+        session.uid,
+        fallback: session.name,
       ),
-      approver,
+      session,
     );
     final rejected = resolved.salik.copyWith(
           approvalStatus: ApprovalStatus.rejected,
           isActive: false,
-          approvedByUid: approver.uid,
+          approvedByUid: session.uid,
           approvedByName: approverName,
           approvedAt: DateTime.now().toIso8601String(),
           modifiedDate: DateTime.now().toIso8601String().split('T').first,
@@ -516,16 +486,6 @@ class SalikRepository {
     final wasNeverSynced = resolved.syncStatus == pendingCreate;
     final syncStatus = wasNeverSynced ? pendingCreate : pendingUpdate;
     final operation = wasNeverSynced ? 'create' : 'update';
-
-    if (canPush) {
-      final pushError = await _sync.pushSalikNow(rejected);
-      if (pushError != null) {
-        throw SalikPermissionException(pushError);
-      }
-      await _sync.pullFromFirestore(session);
-      await _ensureRejectionPersisted(id, rejected);
-      return;
-    }
 
     if (await _db.getSalikById(id) == null) {
       await _db.upsertSalik(
@@ -607,9 +567,6 @@ class SalikRepository {
       docId: id,
       payload: {'salikId': id},
     );
-    if (await _connectivity.isOnline) {
-      unawaited(_sync.syncPushOnly());
-    }
   }
 
   Future<void> toggleActive(String id, bool isActive,
@@ -700,8 +657,5 @@ class SalikRepository {
       docId: salik.salikId,
       payload: salik.toMap(),
     );
-    if (await _connectivity.isOnline) {
-      unawaited(_sync.syncPushOnly());
-    }
   }
 }

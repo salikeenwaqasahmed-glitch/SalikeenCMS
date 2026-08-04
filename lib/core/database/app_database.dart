@@ -9,6 +9,7 @@ import '../config/app_config.dart';
 import '../utils/text_field_merge.dart';
 import '../../features/saliks/domain/entities/approval_status.dart';
 import '../../features/saliks/domain/entities/area.dart';
+import '../../features/saliks/domain/entities/bazam.dart';
 import '../../features/saliks/domain/entities/salik.dart';
 
 part 'app_database.g.dart';
@@ -76,12 +77,23 @@ class LocalSaliks extends Table {
 class LocalAreas extends Table {
   TextColumn get areaId => text()();
   TextColumn get areaName => text()();
-  BoolColumn get isMajor => boolean().withDefault(const Constant(false))();
+  TextColumn get bazamId =>
+      text().withDefault(const Constant('i-10'))();
   TextColumn get syncStatus =>
       text().withDefault(const Constant('synced'))();
 
   @override
   Set<Column<Object>> get primaryKey => {areaId};
+}
+
+class LocalBazams extends Table {
+  TextColumn get bazamId => text()();
+  TextColumn get bazamName => text()();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('synced'))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {bazamId};
 }
 
 class SyncQueue extends Table {
@@ -106,7 +118,14 @@ class LocalAppKv extends Table {
 }
 
 @DriftDatabase(
-  tables: [LocalUsers, LocalSaliks, LocalAreas, SyncQueue, LocalAppKv],
+  tables: [
+    LocalUsers,
+    LocalSaliks,
+    LocalAreas,
+    LocalBazams,
+    SyncQueue,
+    LocalAppKv,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
@@ -114,7 +133,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -196,6 +215,17 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 8) {
             await migrator.createTable(localAppKv);
+          }
+          if (from < 9) {
+            await migrator.createTable(localBazams);
+            await migrator.addColumn(localAreas, localAreas.bazamId);
+            await customStatement(
+              "UPDATE local_areas SET bazam_id = 'i-10' "
+              "WHERE bazam_id IS NULL OR bazam_id = ''",
+            );
+          }
+          if (from < 10) {
+            await migrator.dropColumn(localAreas, 'is_major');
           }
         },
       );
@@ -333,6 +363,29 @@ class AppDatabase extends _$AppDatabase {
 
   Future<List<LocalArea>> getAllAreas() {
     return select(localAreas).get();
+  }
+
+  Stream<List<LocalBazam>> watchAllBazams() {
+    return (select(localBazams)
+          ..orderBy([(t) => OrderingTerm.asc(t.bazamName)]))
+        .watch();
+  }
+
+  Future<void> upsertBazam(LocalBazamsCompanion row) {
+    return into(localBazams).insertOnConflictUpdate(row);
+  }
+
+  Future<LocalBazam?> getBazamById(String id) {
+    return (select(localBazams)..where((t) => t.bazamId.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Future<List<LocalBazam>> getAllBazams() {
+    return select(localBazams).get();
+  }
+
+  Future<void> deleteBazamLocal(String id) {
+    return (delete(localBazams)..where((t) => t.bazamId.equals(id))).go();
   }
 
   Future<LocalUser?> getUserByEmail(String email) {
@@ -477,7 +530,17 @@ LocalAreasCompanion areaToCompanion(Area area, {String syncStatus = synced}) {
   return LocalAreasCompanion(
     areaId: Value(area.areaId),
     areaName: Value(area.areaName),
-    isMajor: Value(area.isMajor),
+    bazamId: Value(
+      area.bazamId.isEmpty ? kDefaultBazamId : area.bazamId,
+    ),
+    syncStatus: Value(syncStatus),
+  );
+}
+
+LocalBazamsCompanion bazamToCompanion(Bazam bazam, {String syncStatus = synced}) {
+  return LocalBazamsCompanion(
+    bazamId: Value(bazam.bazamId),
+    bazamName: Value(bazam.bazamName),
     syncStatus: Value(syncStatus),
   );
 }
