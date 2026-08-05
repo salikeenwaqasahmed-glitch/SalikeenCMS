@@ -63,16 +63,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     redirect: (context, state) {
       final authState = ref.read(authStateProvider);
-      final onLogin = state.matchedLocation == '/login';
+      final loc = state.matchedLocation;
+      final onLogin = loc == '/login';
 
+      // Stay on login while restoring session — LoginScreen shows loader.
       if (authState.isLoading) {
         return onLogin ? null : '/login';
       }
 
       final isLoggedIn = authState.valueOrNull != null;
 
-      if (!isLoggedIn && !onLogin) return '/login';
-      if (isLoggedIn && onLogin) return '/';
+      if (!isLoggedIn) {
+        return onLogin ? null : '/login';
+      }
+
+      if (onLogin) return '/';
       return null;
     },
     routes: [

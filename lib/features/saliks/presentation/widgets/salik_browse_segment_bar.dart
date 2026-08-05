@@ -5,7 +5,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../dashboard/presentation/widgets/segment_pill_bar.dart';
 import '../providers/salik_provider.dart';
 
-/// Category segments only (All / Area / Nafi / Sahib). Location filters live in sheet.
+/// Category segments only (All / Bazam / Nafi / Sahib). Location filters live in sheet.
 class SalikBrowseSegmentBar extends ConsumerWidget {
   const SalikBrowseSegmentBar({super.key});
 
@@ -17,7 +17,7 @@ class SalikBrowseSegmentBar extends ConsumerWidget {
 
     final segmentLabels = [
       l10n.t('segment_all'),
-      l10n.t('segment_area'),
+      l10n.t('segment_bazam'),
       l10n.t('segment_nafi_asbat'),
       l10n.t('segment_sahib_mehfil'),
     ];

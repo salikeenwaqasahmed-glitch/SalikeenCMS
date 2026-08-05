@@ -40,8 +40,16 @@ class BazamAreasScreen extends ConsumerWidget {
           bazamId;
     }).length;
 
-    // All card + area cards
-    final itemCount = areas.length + 1;
+    final areasWithSaliks = areas
+        .map((area) {
+          final count = saliks.where((s) => s.areaId == area.areaId).length;
+          return (area: area, count: count);
+        })
+        .where((e) => e.count > 0)
+        .toList();
+
+    // All card + areas that have at least one salik
+    final itemCount = areasWithSaliks.length + 1;
 
     return AppScaffold(
       title: title,
@@ -65,6 +73,7 @@ class BazamAreasScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               if (index == 0) {
                 return StatCountCard(
+                  expanded: false,
                   label: l10n.t('all'),
                   count: bazamSalikCount,
                   icon: Icons.groups,
@@ -76,9 +85,9 @@ class BazamAreasScreen extends ConsumerWidget {
                 );
               }
 
-              final area = areas[index - 1];
-              final count =
-                  saliks.where((s) => s.areaId == area.areaId).length;
+              final entry = areasWithSaliks[index - 1];
+              final area = entry.area;
+              final count = entry.count;
               final isUrdu =
                   Localizations.localeOf(context).languageCode == 'ur';
               final label = localeBilingualLabel(
@@ -87,13 +96,14 @@ class BazamAreasScreen extends ConsumerWidget {
               ).trim();
 
               return StatCountCard(
+                expanded: false,
                 label: label.isNotEmpty ? label : area.areaName.trim(),
                 count: count,
                 icon: Icons.location_on,
                 colorIndex: index,
                 onTap: () {
                   final notifier = ref.read(salikFilterProvider.notifier);
-                  notifier.setSegment(SalikBrowseSegment.area);
+                  notifier.setSegment(SalikBrowseSegment.bazam);
                   notifier.setArea(area.areaId);
                   context.go('/saliks');
                 },

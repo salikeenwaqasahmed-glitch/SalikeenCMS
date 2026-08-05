@@ -60,6 +60,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final authState = ref.watch(authControllerProvider);
+    final sessionLoading = ref.watch(authStateProvider).isLoading;
+    final hasSession = ref.watch(currentSessionProvider) != null;
+    // Loader for session restore, sign-in, or waiting redirect after success.
+    final showLoader =
+        sessionLoading || authState.isLoading || hasSession;
     final viewInsets = MediaQuery.viewInsetsOf(context);
     final size = MediaQuery.sizeOf(context);
     final isCompact = size.width < 360 || size.height < 640;
@@ -96,6 +101,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         setState(() => _loginError = null);
       }
     });
+
+    if (showLoader) {
+      return const Scaffold(
+        backgroundColor: AppTheme.primaryColor,
+        body: BrandedBackground(
+          safeArea: false,
+          child: AppLoadingPage(color: Colors.white),
+        ),
+      );
+    }
 
     return Scaffold(
       resizeToAvoidBottomInset: true,

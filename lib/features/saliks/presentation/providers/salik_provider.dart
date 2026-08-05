@@ -21,7 +21,7 @@ List<Salik> scopeSaliksToSession(List<Salik> saliks, UserSession? session) {
   return saliks.where((s) => s.genderId == gender).toList();
 }
 
-enum SalikBrowseSegment { all, area, nafiAsbat, sahibMehfil }
+enum SalikBrowseSegment { all, bazam, nafiAsbat, sahibMehfil }
 
 const kSaliksPageSize = 20;
 
@@ -179,7 +179,7 @@ class SalikFilterNotifier extends StateNotifier<SalikFilter> {
 
   void setBazam(String bazamId) {
     final keepLocationSegment = state.segment == SalikBrowseSegment.all ||
-        state.segment == SalikBrowseSegment.area;
+        state.segment == SalikBrowseSegment.bazam;
     state = state.copyWith(
       bazamId: bazamId,
       areaId: 'all',
@@ -200,7 +200,7 @@ class SalikFilterNotifier extends StateNotifier<SalikFilter> {
 
   void setSegment(SalikBrowseSegment segment) {
     final keepLocation = segment == SalikBrowseSegment.all ||
-        segment == SalikBrowseSegment.area;
+        segment == SalikBrowseSegment.bazam;
     state = state.copyWith(
       segment: segment,
       areaId: keepLocation ? state.areaId : 'all',
@@ -275,7 +275,7 @@ bool _matchesNonSearchFilters(
 
   final matchesSegment = switch (filter.segment) {
     SalikBrowseSegment.all => true,
-    SalikBrowseSegment.area => true,
+    SalikBrowseSegment.bazam => true,
     SalikBrowseSegment.nafiAsbat => s.isNafiAsbat,
     SalikBrowseSegment.sahibMehfil => s.isSahibEMehfil,
   };

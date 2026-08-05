@@ -13,7 +13,7 @@ class StatCountCard extends StatelessWidget {
     super.key,
     this.color,
     this.expanded = true,
-    this.width = 108,
+    this.width,
     this.labelMaxLines = 2,
     this.labelFontSize = 11,
     this.onTap,
@@ -25,8 +25,12 @@ class StatCountCard extends StatelessWidget {
   final IconData icon;
   final Color? color;
   final int? colorIndex;
+
+  /// When true, wraps in [Expanded] for Row layouts.
   final bool expanded;
-  final double width;
+
+  /// Fixed width for horizontal strips. Null = fill parent (e.g. GridView).
+  final double? width;
   final int labelMaxLines;
   final double labelFontSize;
   final VoidCallback? onTap;
@@ -126,6 +130,10 @@ class StatCountCard extends StatelessWidget {
     );
 
     if (expanded) return Expanded(child: card);
-    return SizedBox(width: width, height: double.infinity, child: card);
+    if (width != null) {
+      return SizedBox(width: width, height: double.infinity, child: card);
+    }
+    // Fill GridView / other tight parents — never Expanded outside Flex.
+    return card;
   }
 }

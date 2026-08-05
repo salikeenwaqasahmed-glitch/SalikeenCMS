@@ -160,7 +160,7 @@ const Map<String, Map<String, String>> kTranslations = {
     'empty_areas_in_bazam': 'No areas in this bazam yet',
     'bazam_areas_hint': 'Tap All for every salik in this bazam, or an area for that area only',
     'segment_all': 'All',
-    'segment_area': 'Area',
+    'segment_bazam': 'Bazam',
     'segment_nafi_asbat': 'Nafi Asbat',
     'segment_sahib_mehfil': 'Sahib-e-Mehfil',
     'error_invalid_phone':
@@ -379,7 +379,7 @@ const Map<String, Map<String, String>> kTranslations = {
     'empty_areas_in_bazam': 'اس بزم میں ابھی کوئی علاقہ نہیں',
     'bazam_areas_hint': 'تمام پر تھپتھپائیں — اس بزم کے سب سالکین؛ یا ایک علاقہ',
     'segment_all': 'تمام',
-    'segment_area': 'علاقہ',
+    'segment_bazam': 'بزم',
     'segment_nafi_asbat': 'نفی اثبات',
     'segment_sahib_mehfil': 'صاحبِ محفل',
     'error_invalid_phone':

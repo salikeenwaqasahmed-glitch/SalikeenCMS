@@ -9,7 +9,6 @@ import 'core/providers/theme_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/sync/sync_service.dart';
 import 'core/theme/app_theme.dart';
-import 'core/widgets/app_loader.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'firebase_options.dart';
 
@@ -61,7 +60,7 @@ class SalikManagementApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       builder: (context, child) => LoginSyncErrorListener(
-        child: AuthLoadingGate(child: child),
+        child: child ?? const SizedBox.shrink(),
       ),
       routerConfig: router,
     );
@@ -94,31 +93,5 @@ class LoginSyncErrorListener extends ConsumerWidget {
     });
 
     return child;
-  }
-}
-
-/// Full-screen loader only while sign-in request is in flight.
-class AuthLoadingGate extends ConsumerWidget {
-  const AuthLoadingGate({super.key, this.child});
-
-  final Widget? child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final showGate = ref.watch(authControllerProvider).isLoading;
-
-    return Directionality(
-      textDirection: TextDirection.ltr,
-      child: Stack(
-        children: [
-          if (child != null) child!,
-          if (showGate)
-            const ColoredBox(
-              color: AppTheme.primaryColor,
-              child: AppLoadingPage(color: Colors.white),
-            ),
-        ],
-      ),
-    );
   }
 }
