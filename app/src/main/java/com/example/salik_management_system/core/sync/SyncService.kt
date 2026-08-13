@@ -18,11 +18,12 @@ import com.example.salik_management_system.core.database.SyncStatus
 import com.example.salik_management_system.core.database.decodeSyncPayload
 import com.example.salik_management_system.core.network.ConnectivityService
 import com.example.salik_management_system.core.utils.AccessControl
-import com.example.salik_management_system.features.saliks.data.toDomain
-import com.example.salik_management_system.features.saliks.data.toEntity
-import com.example.salik_management_system.features.saliks.domain.Area
-import com.example.salik_management_system.features.saliks.domain.Bazam
-import com.example.salik_management_system.features.saliks.domain.Salik
+import com.example.salik_management_system.core.utils.AppLog
+import com.example.salik_management_system.features.saliks.data.mapper.toDomain
+import com.example.salik_management_system.features.saliks.data.mapper.toEntity
+import com.example.salik_management_system.features.saliks.domain.model.Area
+import com.example.salik_management_system.features.saliks.domain.model.Bazam
+import com.example.salik_management_system.features.saliks.domain.model.Salik
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -63,8 +64,10 @@ class SyncService @Inject constructor(
 
     suspend fun syncNow(sessionOverride: UserSession? = null): SyncResult = mutex.withLock {
         if (!connectivity.isOnline) {
+            AppLog.w(TAG, "Sync aborted: Device offline")
             return SyncResult(false, "Offline — connect to sync")
         }
+        AppLog.i(TAG, "Starting sync...")
         lastSyncError = null
         return try {
             purgeLocalStaleQueue()
@@ -72,11 +75,13 @@ class SyncService @Inject constructor(
 
             val sessionHint = sessionOverride ?: currentSession()
             if (sessionHint == null) {
+                AppLog.w(TAG, "Sync aborted: No active session")
                 return SyncResult(false, "No local session")
             }
 
             val authed = localAuth.refreshFirebaseAuth(auth, preferredEmail = sessionHint.email)
             if (!authed) {
+                AppLog.e(TAG, "Sync aborted: Firebase re-auth failed")
                 return SyncResult(false, "Firebase login failed")
             }
 
@@ -92,19 +97,23 @@ class SyncService @Inject constructor(
 
             if (session.role == UserRole.Admin) {
                 runCatching { seedService.seedIfNeeded() }
-                    .onFailure { Log.d(TAG, "Seed failed: $it") }
+                    .onFailure { AppLog.e(TAG, "Seed failed", it) }
             }
 
             val remaining = syncQueueDao.pendingCount()
             if (remaining > 0) {
-                lastSyncError = "syncQueue: $remaining item(s) still pending"
+                val pendingItems = syncQueueDao.pendingItems()
+                val details = pendingItems.joinToString { "${it.collection}/${it.operation}/${it.docId}" }
+                lastSyncError = "syncQueue: $remaining item(s) still pending [$details]"
+                AppLog.w(TAG, "Sync finished with pending items: $remaining. Details: $details")
                 SyncResult(false, lastSyncError!!)
             } else {
+                AppLog.i(TAG, "Sync completed successfully")
                 SyncResult(true, "Sync complete")
             }
         } catch (e: Exception) {
             lastSyncError = e.message ?: e.toString()
-            Log.e(TAG, "Sync failed", e)
+            AppLog.e(TAG, "Sync failed: $lastSyncError", e)
             SyncResult(false, lastSyncError ?: "Sync failed")
         } finally {
             purgeLocalStaleQueue()
@@ -136,13 +145,16 @@ class SyncService @Inject constructor(
                 when (item.collection) {
                     "saliks" -> {
                         if (!canPushSalik(item, session)) {
+                            AppLog.d(TAG, "Skipping salik push for ${item.docId} (permission/gender filter)")
                             if (AccessControl.isEditor(session.role)) {
                                 syncQueueDao.deleteById(item.id)
                             }
                             continue
                         }
+                        AppLog.d(TAG, "Attempting push for salik ${item.docId}")
                         val pushed = pushSalikFromLocal(item, session)
                         if (!pushed) {
+                            AppLog.d(TAG, "Salik ${item.docId} already synced or not found, deleting from queue")
                             val local = salikDao.getById(item.docId)
                             if (local == null || local.syncStatus == SyncStatus.synced) {
                                 syncQueueDao.deleteById(item.id)
@@ -161,7 +173,7 @@ class SyncService @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
-                Log.d(TAG, "Push failed ${item.collection}/${item.docId}: $e")
+                AppLog.e(TAG, "Push failed ${item.collection}/${item.operation}/${item.docId}: ${e.message}", e)
                 syncQueueDao.updateError(item.id, e.toString(), item.retryCount + 1)
             }
         }
@@ -233,40 +245,52 @@ class SyncService @Inject constructor(
     private suspend fun pushSalik(operation: String, docId: String, payload: Map<String, Any?>) {
         val clean = payload.filterValues { it != null }
         val ref = firestore.collection("saliks").document(docId)
-        when (operation) {
-            "create" -> {
-                val existing = ref.get().await()
-                if (existing.exists()) {
-                    val server = salikFromFirestore(existing.data.orEmpty().toAnyMap(), docId)
-                    if (server.isPending) {
+        AppLog.d(TAG, "Pushing salik ($operation): $docId")
+        
+        try {
+            when (operation) {
+                "create" -> {
+                    val existing = ref.get().await()
+                    if (existing.exists()) {
+                        val server = salikFromFirestore(existing.data.orEmpty().toAnyMap(), docId)
+                        if (server.isPending) {
+                            AppLog.i(TAG, "Salik $docId exists on server but is pending. Caching server version.")
+                            cacheSalik(server)
+                            return
+                        }
+                        AppLog.w(TAG, "Critical: Attempted to CREATE salik $docId but it already exists on server.")
+                        // If it exists and is approved, just sync it locally
                         cacheSalik(server)
                         return
                     }
-                    throw IllegalStateException("Salik $docId already exists")
+                    ref.set(clean).await()
+                    cacheSalik(salikFromFirestore(clean, docId))
                 }
-                ref.set(clean).await()
-                cacheSalik(salikFromFirestore(clean, docId))
-            }
-            "update" -> {
-                ref.set(clean, SetOptions.merge()).await()
-                cacheSalik(salikFromFirestore(clean, docId))
-            }
-            "delete" -> {
-                val archive = clean.toMutableMap()
-                if (archive.isEmpty()) {
-                    val existing = ref.get().await()
-                    if (existing.exists()) {
-                        archive.putAll(existing.data.orEmpty().toAnyMap())
+                "update" -> {
+                    ref.set(clean, SetOptions.merge()).await()
+                    cacheSalik(salikFromFirestore(clean, docId))
+                }
+                "delete" -> {
+                    val archive = clean.toMutableMap()
+                    if (archive.isEmpty()) {
+                        val existing = ref.get().await()
+                        if (existing.exists()) {
+                            archive.putAll(existing.data.orEmpty().toAnyMap())
+                        }
                     }
+                    archive["salikId"] = docId
+                    archive["deletedAt"] = Timestamp.now()
+                    auth.currentUser?.uid?.let { archive["deletedByUid"] = it }
+                    firestore.collection("delete_saliks").document(docId).set(archive).await()
+                    ref.delete().await()
+                    salikDao.deleteById(docId)
+                    syncQueueDao.deleteForDoc("saliks", docId)
+                    AppLog.i(TAG, "Salik $docId deleted from server and local.")
                 }
-                archive["salikId"] = docId
-                archive["deletedAt"] = Timestamp.now()
-                auth.currentUser?.uid?.let { archive["deletedByUid"] = it }
-                firestore.collection("delete_saliks").document(docId).set(archive).await()
-                ref.delete().await()
-                salikDao.deleteById(docId)
-                syncQueueDao.deleteForDoc("saliks", docId)
             }
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Firestore push failed for $docId: ${e.message}", e)
+            throw e
         }
     }
 

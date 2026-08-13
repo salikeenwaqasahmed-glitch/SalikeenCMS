@@ -31,6 +31,7 @@ android {
     productFlavors {
         create("dev") {
             dimension = "env"
+            applicationIdSuffix = ".dev"
             buildConfigField("String", "APP_ENV", "\"dev\"")
             resValue("string", "app_name", "Salikeen CMS Dev")
         }

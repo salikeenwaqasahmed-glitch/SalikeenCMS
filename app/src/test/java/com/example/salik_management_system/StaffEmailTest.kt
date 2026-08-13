@@ -18,7 +18,7 @@ class StaffEmailTest {
         assertNotNull(staffEmailLocalPartError(null))
         assertNotNull(staffEmailLocalPartError(""))
         assertNotNull(staffEmailLocalPartError("bad name"))
+        assertEquals("Username only", staffEmailLocalPartError("user@cms.com"))
         assertNull(staffEmailLocalPartError("madmin"))
-        assertNull(staffEmailLocalPartError("user@cms.com"))
     }
 }

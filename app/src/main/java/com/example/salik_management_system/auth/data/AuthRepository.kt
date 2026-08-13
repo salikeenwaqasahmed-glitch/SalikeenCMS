@@ -7,6 +7,7 @@ import com.example.salik_management_system.core.auth.NoLocalUserOfflineException
 import com.example.salik_management_system.core.auth.OfflineWrongPasswordException
 import com.example.salik_management_system.core.network.ConnectivityService
 import com.example.salik_management_system.core.utils.AccessControl
+import com.example.salik_management_system.core.utils.AppLog
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
@@ -101,12 +102,12 @@ class AuthRepository @Inject constructor(
                 fetchSessionInternal()
             }
         } catch (e: TimeoutCancellationException) {
-            Log.d(TAG, "fetchSession timed out; using cached session if any")
+            AppLog.w(TAG, "fetchSession timed out; using cached session if any")
             cachedSessionFallback()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.d(TAG, "fetchSession failed: $e")
+            AppLog.e(TAG, "fetchSession failed: ${e.message}", e)
             cachedSessionFallback()
         }
     }
@@ -377,6 +378,8 @@ class AuthRepository @Inject constructor(
         val email = LocalAuthStore.normalizeEmail(authUser.email ?: session.email)
         if (email.isEmpty()) return session
 
+        AppLog.d(TAG, "Syncing user profile for $email ($uid)")
+
         val source = profileSourceForEmail(email, fallback = session) ?: return session
 
         val ref = firestore.collection("users").document(uid)
@@ -398,7 +401,7 @@ class AuthRepository @Inject constructor(
                     )
                     ref.set(repaired.toMap(), SetOptions.merge()).await()
                     localAuth.saveUser(repaired, password = password)
-                    Log.d(TAG, "Repaired users/$uid → role=${repaired.role.toFirestore()}")
+                    AppLog.i(TAG, "Repaired users/$uid → role=${repaired.role.toFirestore()}")
                     finalizeOnlineSession(repaired, password)
                 }
                 remote.uid != uid -> {
@@ -429,7 +432,7 @@ class AuthRepository @Inject constructor(
             )
             ref.set(created.toMap(), SetOptions.merge()).await()
             localAuth.saveUser(created, password = password)
-            Log.d(TAG, "Synced users/$uid for $email")
+            AppLog.i(TAG, "Synced users/$uid for $email")
             finalizeOnlineSession(created, password)
         }
 

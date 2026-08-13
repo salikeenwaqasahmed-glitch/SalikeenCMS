@@ -1,8 +1,8 @@
 package com.example.salik_management_system.core.data
 
-import com.example.salik_management_system.features.saliks.domain.Area
-import com.example.salik_management_system.features.saliks.domain.Bazam
-import com.example.salik_management_system.features.saliks.domain.kDefaultBazamId
+import com.example.salik_management_system.features.saliks.domain.model.Area
+import com.example.salik_management_system.features.saliks.domain.model.Bazam
+import com.example.salik_management_system.features.saliks.domain.model.kDefaultBazamId
 
 val kBazams: List<Bazam> = listOf(
     Bazam(bazamId = kDefaultBazamId, bazamName = "I-10"),

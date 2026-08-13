@@ -1,7 +1,7 @@
 package com.example.salik_management_system.core.export
 
-import com.example.salik_management_system.features.saliks.domain.Area
-import com.example.salik_management_system.features.saliks.domain.Salik
+import com.example.salik_management_system.features.saliks.domain.model.Area
+import com.example.salik_management_system.features.saliks.domain.model.Salik
 
 object SalikCsvExport {
     fun build(saliks: List<Salik>, areaLookup: Map<String, Area> = emptyMap()): String {

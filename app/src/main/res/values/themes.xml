@@ -3,6 +3,9 @@
     <style name="Theme.SalikManagementSystem" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">#003527</item>
         <item name="android:navigationBarColor">#FFFFFF</item>
-        <item name="android:windowBackground">#F4F7F6</item>
+        <item name="android:windowBackground">#F0F4F2</item>
+        <item name="android:colorPrimary">#003527</item>
+        <item name="android:colorPrimaryDark">#002117</item>
+        <item name="android:colorAccent">#E8C547</item>
     </style>
 </resources>

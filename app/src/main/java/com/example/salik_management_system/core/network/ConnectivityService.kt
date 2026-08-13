@@ -16,11 +16,15 @@ class ConnectivityService(
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
+    /**
+     * True when the active network has internet capability.
+     * Does not require VALIDATED — avoids false offline on captive/slow DNS.
+     */
     val isOnline: Boolean
         get() {
             val network = connectivityManager.activeNetwork ?: return false
             val caps = connectivityManager.getNetworkCapabilities(network) ?: return false
-            return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
                 caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
         }
 

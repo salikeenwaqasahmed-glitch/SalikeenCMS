@@ -1,8 +1,12 @@
 package com.example.salik_management_system.ui.navigation
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
@@ -16,12 +20,12 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -30,16 +34,19 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
-import com.example.salik_management_system.auth.presentation.screens.LoginScreen
-import com.example.salik_management_system.features.dashboard.presentation.screens.DashboardScreen
-import com.example.salik_management_system.features.saliks.presentation.screens.AddSalikFormScreen
-import com.example.salik_management_system.features.saliks.presentation.screens.BazamAreasScreen
-import com.example.salik_management_system.features.saliks.presentation.screens.DuplicateSaliksScreen
-import com.example.salik_management_system.features.saliks.presentation.screens.PendingApprovalsScreen
-import com.example.salik_management_system.features.saliks.presentation.screens.SalikDirectoryScreen
-import com.example.salik_management_system.features.saliks.presentation.screens.SalikMessageQueueScreen
-import com.example.salik_management_system.features.saliks.presentation.screens.SalikProfileScreen
-import com.example.salik_management_system.features.settings.presentation.screens.SettingsScreen
+import com.example.salik_management_system.auth.ui.screens.LoginScreen
+import com.example.salik_management_system.features.dashboard.ui.screens.DashboardScreen
+import com.example.salik_management_system.features.saliks.ui.screens.AddEditSalikScreen
+import com.example.salik_management_system.features.saliks.ui.screens.BazamAreasScreen
+import com.example.salik_management_system.features.saliks.ui.screens.DuplicateSaliksScreen
+import com.example.salik_management_system.features.saliks.ui.screens.PendingApprovalsScreen
+import com.example.salik_management_system.features.saliks.ui.screens.SalikDirectoryScreen
+import com.example.salik_management_system.features.saliks.ui.screens.SalikMessageQueueScreen
+import com.example.salik_management_system.features.saliks.ui.screens.SalikProfileScreen
+import com.example.salik_management_system.features.settings.ui.screens.SettingsScreen
+import com.example.salik_management_system.ui.components.OfflineBanner
+import com.example.salik_management_system.ui.theme.Brand
+import com.example.salik_management_system.ui.theme.brandNavItemColors
 
 @Composable
 fun SalikNavGraph(
@@ -57,12 +64,18 @@ fun SalikNavGraph(
     val showBottomBar = SalikRoutes.showsBottomBar(currentRoute)
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (showBottomBar) {
                 Column {
                     if (isSyncing) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.primaryContainer,
+                        )
                     }
                     SalikBottomBar(
                         currentRoute = currentRoute,
@@ -81,18 +94,18 @@ fun SalikNavGraph(
             }
         },
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
+        val layoutDirection = LocalLayoutDirection.current
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = padding.calculateStartPadding(layoutDirection),
+                    end = padding.calculateEndPadding(layoutDirection),
+                    bottom = padding.calculateBottomPadding(),
+                )
+        ) {
             if (!isOnline) {
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        "Offline — browsing cached data",
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+                OfflineBanner(modifier = Modifier.statusBarsPadding())
             }
             NavHost(
                 navController = navController,
@@ -156,11 +169,12 @@ fun SalikNavGraph(
                     )
                 }
                 composable(SalikRoutes.SalikAdd) {
-                    AddSalikFormScreen(
+                    AddEditSalikScreen(
                         onBack = { navController.popBackStack() },
-                        onSaved = { id ->
-                            navController.navigate(SalikRoutes.salikProfile(id)) {
-                                popUpTo(SalikRoutes.SalikAdd) { inclusive = true }
+                        onSaved = { _ ->
+                            navController.navigate(SalikRoutes.Saliks) {
+                                popUpTo(SalikRoutes.Dashboard) { inclusive = false }
+                                launchSingleTop = true
                             }
                         },
                     )
@@ -170,11 +184,14 @@ fun SalikNavGraph(
                     arguments = listOf(navArgument("id") { type = NavType.StringType }),
                 ) { entry ->
                     val id = entry.arguments?.getString("id")
-                    AddSalikFormScreen(
+                    AddEditSalikScreen(
                         salikId = id,
                         onBack = { navController.popBackStack() },
-                        onSaved = {
-                            navController.popBackStack()
+                        onSaved = { _ ->
+                            navController.navigate(SalikRoutes.Saliks) {
+                                popUpTo(SalikRoutes.Dashboard) { inclusive = false }
+                                launchSingleTop = true
+                            }
                         },
                     )
                 }
@@ -218,13 +235,19 @@ private fun SalikBottomBar(
         BottomItem(SalikRoutes.Settings, "Settings", Icons.Filled.Settings),
     )
 
-    NavigationBar {
+    val itemColors = brandNavItemColors()
+    NavigationBar(
+        containerColor = Brand.Surface,
+        contentColor = Brand.OnSurface,
+        tonalElevation = 0.dp,
+    ) {
         items.forEach { item ->
             NavigationBarItem(
                 selected = currentRoute == item.route,
                 onClick = { onNavigate(item.route) },
                 icon = { Icon(item.icon, contentDescription = item.label) },
                 label = { Text(item.label) },
+                colors = itemColors,
             )
         }
         NavigationBarItem(
@@ -232,6 +255,7 @@ private fun SalikBottomBar(
             onClick = onSync,
             icon = { Icon(Icons.Filled.Refresh, contentDescription = "Sync") },
             label = { Text("Sync") },
+            colors = itemColors,
         )
     }
 }

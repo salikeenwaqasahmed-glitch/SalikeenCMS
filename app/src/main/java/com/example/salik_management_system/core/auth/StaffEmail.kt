@@ -2,18 +2,20 @@ package com.example.salik_management_system.core.auth
 
 import com.example.salik_management_system.core.config.AppConfig
 
-/** Composes a full staff email from local part or passes through full addresses. */
+/**
+ * Builds Firebase Auth email from username local-part only.
+ * Domain is never shown in the login UI — append happens here.
+ */
 fun composeStaffEmail(input: String): String {
-    val trimmed = input.trim()
+    val trimmed = input.trim().lowercase()
     if (trimmed.isEmpty()) return ""
-
-    val normalized = LocalAuthStore.normalizeEmail(trimmed)
-    if (normalized.contains("@")) return normalized
-
-    return normalized + AppConfig.staffEmailDomain
+    // Username-only: ignore accidental @domain (validation should reject first).
+    val local = trimmed.substringBefore("@")
+    if (local.isEmpty()) return ""
+    return local + AppConfig.staffEmailDomain
 }
 
-/** Strips env domain suffix for display in the login local-part field. */
+/** Strips env domain suffix for remembered username display. */
 fun localPartFromStaffEmail(email: String): String {
     val normalized = LocalAuthStore.normalizeEmail(email)
     if (normalized.isEmpty()) return ""
@@ -22,23 +24,21 @@ fun localPartFromStaffEmail(email: String): String {
     return if (normalized.endsWith(domain)) {
         normalized.substring(0, normalized.length - domain.length)
     } else {
-        normalized
+        normalized.substringBefore("@")
     }
 }
 
+/** Username field validation — local part only, no email. */
 fun staffEmailLocalPartError(value: String?): String? {
     if (value == null || value.trim().isEmpty()) {
         return "Required"
     }
     val trimmed = value.trim()
+    if (trimmed.contains("@")) {
+        return "Username only"
+    }
     if (trimmed.contains(" ")) {
         return "Invalid username"
-    }
-    if (trimmed.contains("@")) {
-        if (trimmed.startsWith("@") || trimmed.endsWith("@") || !trimmed.contains(".")) {
-            return "Invalid email"
-        }
-        return null
     }
     return null
 }

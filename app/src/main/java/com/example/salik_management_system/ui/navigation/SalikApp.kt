@@ -9,7 +9,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
-import com.example.salik_management_system.auth.presentation.viewmodel.AuthViewModel
+import com.example.salik_management_system.auth.ui.viewmodel.AuthViewModel
 import com.example.salik_management_system.core.sync.SyncViewModel
 import com.example.salik_management_system.ui.theme.SalikTheme
 import com.example.salik_management_system.ui.theme.ThemeViewModel
@@ -57,6 +57,12 @@ fun SalikApp(
                 goLogin()
             }
         }
+    }
+
+    LaunchedEffect(uiState.offlineReadyMessage) {
+        val msg = uiState.offlineReadyMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(msg)
+        authViewModel.clearOfflineReadyMessage()
     }
 
     SalikTheme(darkTheme = darkTheme) {

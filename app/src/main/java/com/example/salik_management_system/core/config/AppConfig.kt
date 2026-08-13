@@ -16,11 +16,16 @@ object AppConfig {
     val roomDbName: String
         get() = if (isProd) "salik_crm_local_prod" else "salik_crm_local_dev"
 
+    /** Internal / log label. */
     val envLabel: String
-        get() = if (isProd) "PROD" else "DEV"
+        get() = if (isProd) "prod" else "dev"
+
+    /** User-facing chip — only Dev shows a badge. */
+    val showDevBadge: Boolean
+        get() = isDev
 
     val envDisplayName: String
-        get() = if (isProd) "Production App" else "Dev App"
+        get() = if (isProd) "Salikeen CMS" else "Dev App"
 
     val firebaseProjectId: String
         get() = if (isProd) "salikeencms-prod" else "salikeencms"
