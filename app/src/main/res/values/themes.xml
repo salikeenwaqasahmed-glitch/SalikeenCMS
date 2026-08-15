@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.SalikManagementSystem" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#003527</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowBackground">#F0F4F2</item>
+        <item name="android:colorPrimary">#003527</item>
+        <item name="android:colorPrimaryDark">#002117</item>
+        <item name="android:colorAccent">#E8C547</item>
+    </style>
+</resources>
