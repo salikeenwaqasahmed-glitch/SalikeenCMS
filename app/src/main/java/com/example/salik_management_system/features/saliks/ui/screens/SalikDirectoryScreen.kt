@@ -2,6 +2,8 @@ package com.example.salik_management_system.features.saliks.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,10 +14,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -26,9 +31,11 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContactPhone
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PeopleOutline
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -45,9 +52,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +65,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -63,13 +74,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.salik_management_system.features.saliks.domain.model.ApprovalStatus
+import com.example.salik_management_system.features.saliks.domain.model.Salik
 import com.example.salik_management_system.features.saliks.ui.viewmodel.SalikListViewModel
 import com.example.salik_management_system.ui.components.AppListRow
 import com.example.salik_management_system.ui.components.EmptyState
-import com.example.salik_management_system.ui.components.IosCardSection
 import com.example.salik_management_system.ui.components.IosGroupedCard
-import com.example.salik_management_system.ui.components.StatusChip
-import com.example.salik_management_system.ui.components.StatusTone
+import com.example.salik_management_system.ui.components.rememberHaptic
+import com.example.salik_management_system.ui.components.shimmerLoadingAnimation
 import com.example.salik_management_system.ui.theme.Brand
 import com.example.salik_management_system.ui.theme.Dimens
 import com.example.salik_management_system.ui.theme.brandFilterChipBorder
@@ -88,23 +99,28 @@ fun SalikDirectoryScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    
     var menuExpanded by remember { mutableStateOf(false) }
     var bazamMenu by remember { mutableStateOf(false) }
     var areaMenu by remember { mutableStateOf(false) }
     var showMessageDialog by remember { mutableStateOf(false) }
     var pendingMessage by remember { mutableStateOf("") }
 
-    val areas = state.areas.filter {
-        state.filters.bazamId == null || it.bazamId == state.filters.bazamId
+    val areas = remember(state.areas, state.filters.bazamId) {
+        state.areas.filter {
+            state.filters.bazamId == null || it.bazamId == state.filters.bazamId
+        }
     }
-    val bazamLabel =
+    
+    val bazamLabel = remember(state.bazams, state.filters.bazamId) {
         state.bazams.firstOrNull { it.bazamId == state.filters.bazamId }?.bazamName ?: "Bazam"
-    val areaLabel = areas.firstOrNull { it.areaId == state.filters.areaId }?.areaName ?: "Area"
-    val rangeStart = if (state.totalCount == 0) {
-        0
-    } else {
-        (state.page - 1) * state.pageSize + 1
     }
+    
+    val areaLabel = remember(areas, state.filters.areaId) {
+        areas.firstOrNull { it.areaId == state.filters.areaId }?.areaName ?: "Area"
+    }
+
+    val rangeStart = if (state.totalCount == 0) 0 else (state.page - 1) * state.pageSize + 1
     val rangeEnd = minOf(state.page * state.pageSize, state.totalCount)
 
     Scaffold(
@@ -247,12 +263,12 @@ fun SalikDirectoryScreen(
                         onClick = { viewModel.clearTypeFilters() },
                     )
                     StatusFilterChip(
-                        label = "Nafi",
+                        label = "Nafi Asbat",
                         selected = state.filters.nafiOnly,
                         onClick = { viewModel.setNafiOnly(!state.filters.nafiOnly) },
                     )
                     StatusFilterChip(
-                        label = "Sahib",
+                        label = "Sahib-e-Mehfil",
                         selected = state.filters.sahibOnly,
                         onClick = { viewModel.setSahibOnly(!state.filters.sahibOnly) },
                     )
@@ -289,85 +305,62 @@ fun SalikDirectoryScreen(
                 }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = Dimens.xs),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (state.totalCount == 0) {
-                        "0 saliks"
-                    } else {
-                        "Showing $rangeStart–$rangeEnd of ${state.totalCount}"
-                    },
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp),
-                )
-            }
+            Text(
+                text = if (state.totalCount == 0) "0 saliks found" else "Showing $rangeStart–$rangeEnd of ${state.totalCount}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, bottom = Dimens.xs),
+            )
 
             // Middle: page data
-            IosGroupedCard(modifier = Modifier.weight(1f)) {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    itemsIndexed(state.pageItems, key = { _, s -> s.salikId }) { index, salik ->
-                        val isSelected = salik.salikId in state.selectedIds
-                        AppListRow(
-                            title = salik.name,
-                            subtitle = buildString {
-                                append(salik.fatherName)
-                                if (salik.mobileNumber.isNotBlank()) {
-                                    append(" · ")
-                                    append(salik.mobileNumber)
-                                }
-                                val years = salik.calculateAge()
-                                if (years != null) {
-                                    append(" · ")
-                                    append("$years yrs")
-                                }
-                                val bazam = state.bazams.firstOrNull { it.bazamId == salik.bazamId }
-                                if (bazam != null) {
-                                    append(" · ")
-                                    append(bazam.bazamName)
-                                }
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(Dimens.xs)
+            ) {
+                if (state.isLoading) {
+                    items(10) {
+                        IosGroupedCard {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(72.dp)
+                                    .shimmerLoadingAnimation()
+                            )
+                        }
+                    }
+                } else {
+                    items(state.pageItems, key = { it.salikId }) { salik ->
+                        SalikSwipeableRow(
+                            salik = salik,
+                            isSelected = salik.salikId in state.selectedIds,
+                            isSelectionMode = state.isSelectionMode,
+                            onSelect = { viewModel.toggleSelection(salik.salikId) },
+                            onClick = { onOpenProfile(salik.salikId) },
+                            onEdit = { onOpenProfile(salik.salikId) },
+                            onCall = {
+                                com.example.salik_management_system.core.utils.ContactLauncher.callIntent(salik.mobileNumber)
+                                    ?.let { context.startActivity(it) }
                             },
-                            showDivider = index < state.pageItems.lastIndex,
-                            onClick = {
-                                if (state.isSelectionMode) {
-                                    viewModel.toggleSelection(salik.salikId)
-                                } else {
-                                    onOpenProfile(salik.salikId)
-                                }
-                            },
-                            trailing = {
-                                if (state.isSelectionMode) {
-                                    Icon(
-                                        imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                                        contentDescription = null,
-                                        tint = if (isSelected) Brand.Green else Brand.OutlineVariant
-                                    )
-                                } else {
-                                    ContactActionMenu(salik)
-                                }
-                            },
+                            bazams = state.bazams
                         )
                     }
+
                     if (state.pageItems.isEmpty()) {
                         item {
-                            EmptyState(
-                                title = "No saliks yet",
-                                subtitle = "Sync to pull data, or tap Add to create one.",
-                                icon = Icons.Filled.PeopleOutline,
-                            )
+                            IosGroupedCard {
+                                EmptyState(
+                                    title = "No saliks yet",
+                                    subtitle = "Sync to pull data, or tap Add to create one.",
+                                    icon = Icons.Filled.PeopleOutline,
+                                )
+                            }
                         }
                     }
                 }
             }
-
+            
             Spacer(modifier = Modifier.height(Dimens.sm))
 
-            // Bottom: fixed pagination
             PaginationBar(
                 page = state.page,
                 totalPages = state.totalPages,
@@ -432,51 +425,98 @@ fun SalikDirectoryScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ContactActionMenu(salik: com.example.salik_management_system.features.saliks.domain.model.Salik) {
-    val context = LocalContext.current
-    var expanded by remember { mutableStateOf(false) }
+private fun SalikSwipeableRow(
+    salik: Salik,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
+    onSelect: () -> Unit,
+    onClick: () -> Unit,
+    onEdit: () -> Unit,
+    onCall: () -> Unit,
+    bazams: List<com.example.salik_management_system.features.saliks.domain.model.Bazam>
+) {
+    val haptic = rememberHaptic()
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> { 
+                    haptic()
+                    onCall()
+                    false 
+                }
+                SwipeToDismissBoxValue.EndToStart -> { 
+                    haptic()
+                    onEdit()
+                    false
+                }
+                else -> false
+            }
+        }
+    )
 
-    Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(
-                imageVector = Icons.Default.Call,
-                contentDescription = "Contact options",
-                tint = Brand.Green
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val color by animateColorAsState(
+                when (dismissState.targetValue) {
+                    SwipeToDismissBoxValue.StartToEnd -> Brand.Green
+                    SwipeToDismissBoxValue.EndToStart -> Brand.Gold
+                    else -> Color.Transparent
+                }, label = "swipeColor"
             )
-        }
-        DropdownMenu(
-            expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text("Call") },
-                leadingIcon = { Icon(Icons.Default.Call, contentDescription = null) },
-                onClick = {
-                    expanded = false
-                    com.example.salik_management_system.core.utils.ContactLauncher.callIntent(salik.mobileNumber)
-                        ?.let {
-                            context.startActivity(it)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(Dimens.cardRadius))
+                    .background(color)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+            ) {
+                val icon = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd) Icons.Default.Call else Icons.Default.Person
+                Icon(icon, contentDescription = null, tint = Color.White)
+            }
+        },
+        content = {
+            IosGroupedCard {
+                AppListRow(
+                    title = salik.name,
+                    subtitle = buildString {
+                        append(salik.fatherName)
+                        if (salik.mobileNumber.isNotBlank()) {
+                            append(" · ")
+                            append(salik.mobileNumber)
                         }
-                })
-            DropdownMenuItem(
-                text = { Text("WhatsApp") },
-                leadingIcon = { Icon(Icons.Default.Chat, contentDescription = null) },
-                onClick = {
-                    expanded = false
-                    val phone = salik.whatsappNumber.ifEmpty { salik.mobileNumber }
-                    com.example.salik_management_system.core.utils.ContactLauncher.whatsappIntent(
-                        phone
-                    )?.let { context.startActivity(it) }
-                })
-            DropdownMenuItem(
-                text = { Text("Send SMS") },
-                leadingIcon = { Icon(Icons.Default.Chat, contentDescription = null) },
-                onClick = {
-                    expanded = false
-                    com.example.salik_management_system.core.utils.ContactLauncher.smsIntent(salik.mobileNumber)
-                        ?.let { context.startActivity(it) }
-                })
+                        val bazam = bazams.firstOrNull { it.bazamId == salik.bazamId }
+                        if (bazam != null) {
+                            append(" · ")
+                            append(bazam.bazamName)
+                        }
+                    },
+                    showDivider = false,
+                    onClick = {
+                        if (isSelectionMode) {
+                            onSelect()
+                        } else {
+                            onClick()
+                        }
+                    },
+                    trailing = {
+                        if (isSelectionMode) {
+                            Icon(
+                                imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                contentDescription = null,
+                                tint = if (isSelected) Brand.Green else Brand.OutlineVariant
+                            )
+                        } else {
+                            ContactActionMenu(salik)
+                        }
+                    },
+                )
+            }
         }
-    }
+    )
 }
 
 @Composable
@@ -522,6 +562,53 @@ private fun PaginationBar(
                     contentDescription = "Next page",
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ContactActionMenu(salik: com.example.salik_management_system.features.saliks.domain.model.Salik) {
+    val context = LocalContext.current
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = Icons.Default.Call,
+                contentDescription = "Contact options",
+                tint = Brand.Green
+            )
+        }
+        DropdownMenu(
+            expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Call") },
+                leadingIcon = { Icon(Icons.Default.Call, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    com.example.salik_management_system.core.utils.ContactLauncher.callIntent(salik.mobileNumber)
+                        ?.let {
+                            context.startActivity(it)
+                        }
+                })
+            DropdownMenuItem(
+                text = { Text("WhatsApp") },
+                leadingIcon = { Icon(Icons.Default.Chat, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    val phone = salik.whatsappNumber.ifEmpty { salik.mobileNumber }
+                    com.example.salik_management_system.core.utils.ContactLauncher.whatsappIntent(
+                        phone
+                    )?.let { context.startActivity(it) }
+                })
+            DropdownMenuItem(
+                text = { Text("Send SMS") },
+                leadingIcon = { Icon(Icons.Default.Chat, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    com.example.salik_management_system.core.utils.ContactLauncher.smsIntent(salik.mobileNumber)
+                        ?.let { context.startActivity(it) }
+                })
         }
     }
 }

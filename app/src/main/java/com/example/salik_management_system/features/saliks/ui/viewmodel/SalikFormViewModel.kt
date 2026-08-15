@@ -46,6 +46,7 @@ data class SalikFormState(
     val isLoadingRecord: Boolean = false,
     val isSaving: Boolean = false,
     val error: String? = null,
+    val message: String? = null,
     val savedId: String? = null,
 )
 
@@ -121,11 +122,15 @@ class SalikFormViewModel @Inject constructor(
             val newState = block(prevState)
             // If area changed, automatically update bazamId based on the area's metadata
             if (newState.areaId != prevState.areaId) {
-                val area = newState.areas.find { it.areaId == newState.areaId }
-                if (area != null) {
-                    newState.copy(bazamId = area.bazamId)
-                } else {
+                if (newState.areaId.startsWith("NEW:")) {
                     newState
+                } else {
+                    val area = newState.areas.find { it.areaId == newState.areaId }
+                    if (area != null) {
+                        newState.copy(bazamId = area.bazamId)
+                    } else {
+                        newState
+                    }
                 }
             } else {
                 newState
@@ -138,9 +143,6 @@ class SalikFormViewModel @Inject constructor(
         if (_form.value.salikId == salikId && _form.value.name.isNotEmpty()) return
         viewModelScope.launch {
             _form.update { it.copy(isLoadingRecord = true, salikId = salikId) }
-            
-            // Try to sync this specific ID from server before editing to ensure latest data
-            syncService.syncNow() 
 
             val salik = salikRepository.getById(salikId)
             if (salik != null) {
@@ -182,6 +184,34 @@ class SalikFormViewModel @Inject constructor(
             }
             _form.update { it.copy(isSaving = true, error = null) }
             try {
+                // Handle new area creation
+                var finalAreaId = state.areaId
+                var finalBazamId = state.bazamId
+
+                if (state.areaId.startsWith("NEW:")) {
+                    val newAreaName = state.areaId.removePrefix("NEW:").trim()
+                    if (newAreaName.isNotEmpty()) {
+                        // Check if an area with this name already exists (case-insensitive)
+                        val existing = state.areas.find { it.areaName.equals(newAreaName, ignoreCase = true) }
+                        if (existing != null) {
+                            finalAreaId = existing.areaId
+                            finalBazamId = existing.bazamId
+                        } else {
+                            // Use hardcoded i-10 as we don't have bazamId in UserSession
+                            val bazamForNewArea = kDefaultBazamId
+                            val createdArea = areaRepository.createArea(
+                                name = newAreaName,
+                                bazamId = bazamForNewArea
+                            )
+                            finalAreaId = createdArea.areaId
+                            finalBazamId = createdArea.bazamId
+                        }
+                    } else {
+                        _form.update { it.copy(isSaving = false, error = "Invalid new area name") }
+                        return@launch
+                    }
+                }
+
                 val gender = if (session != null) {
                     AccessControl.effectiveGender(session, state.genderId)
                 } else {
@@ -194,10 +224,10 @@ class SalikFormViewModel @Inject constructor(
                     fatherName = state.fatherName.trim(),
                     mobileNumber = state.mobileNumber.trim(),
                     whatsappNumber = state.whatsappNumber.trim().ifEmpty { state.mobileNumber.trim() },
-                    areaId = state.areaId,
+                    areaId = finalAreaId,
                     address = state.address.trim(),
                     genderId = gender,
-                    bazamId = state.bazamId.ifEmpty { kDefaultBazamId },
+                    bazamId = finalBazamId.ifEmpty { kDefaultBazamId },
                     dateOfBaith = state.dateOfBaith.ifEmpty { now },
                     referenceName = state.referenceName.trim(),
                     isNafiAsbat = state.isNafiAsbat,
@@ -218,14 +248,8 @@ class SalikFormViewModel @Inject constructor(
                 }
                 
                 AppLog.i("SalikFormVM", "Save successful. Final ID: $id")
-                
-                // Trigger background sync immediately after successful local save
-                viewModelScope.launch {
-                    AppLog.d("SalikFormVM", "Triggering post-save sync")
-                    syncService.syncNow()
-                }
 
-                _form.update { it.copy(isSaving = false, savedId = id) }
+                _form.update { it.copy(isSaving = false, savedId = id, message = "Success") }
             } catch (e: DuplicateSalikException) {
                 AppLog.w("SalikFormVM", "Save failed: Duplicate detected (${e.reason})")
                 _form.update {

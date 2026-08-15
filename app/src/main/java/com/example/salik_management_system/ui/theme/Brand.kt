@@ -2,6 +2,7 @@
 
 package com.example.salik_management_system.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -14,15 +15,15 @@ import androidx.compose.ui.graphics.Color
 object Brand {
     val Green = PrimaryGreen
     val GreenLight = PrimaryGreenLight
-    val GreenContainer = Color(0xFFB8E0CF)
-    val OnGreenContainer = Color(0xFF002117)
+    val GreenContainer = Color(0xFFC8E6C9)
+    val OnGreenContainer = Color(0xFF002106)
     val Gold = AccentGold
     val GoldMuted = AccentGoldMuted
-    val BgLight = Color(0xFFF0F4F2)
-    val Surface = Color(0xFFFFFFFF)
-    val OnSurface = Color(0xFF121C18)
-    val OnSurfaceVariant = Color(0xFF3F4A45)
-    val OutlineVariant = Color(0xFFBFC9C3)
+    val BgLight = Color.White
+    val Surface = Color.White
+    val OnSurface = Color(0xFF1A1C1E)
+    val OnSurfaceVariant = Color(0xFF44474E)
+    val OutlineVariant = Color(0xFFC4C6CF)
 
     val BgDark = Color(0xFF0B100E)
     val SurfaceDark = Color(0xFF141A17)
@@ -33,20 +34,20 @@ object Brand {
 
 @Composable
 fun brandNavItemColors() = NavigationBarItemDefaults.colors(
-    selectedIconColor = Brand.Green,
-    selectedTextColor = Brand.Green,
-    indicatorColor = Brand.GreenContainer,
-    unselectedIconColor = Brand.OnSurfaceVariant,
-    unselectedTextColor = Brand.OnSurfaceVariant,
+    selectedIconColor = Brand.Gold,
+    selectedTextColor = Brand.Gold,
+    indicatorColor = Brand.Gold.copy(alpha = 0.15f),
+    unselectedIconColor = if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.7f) else Color.White,
+    unselectedTextColor = if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.7f) else Color.White,
 )
 
 @Composable
 fun brandTopAppBarColors() = TopAppBarDefaults.topAppBarColors(
-    containerColor = Brand.BgLight,
-    titleContentColor = Brand.OnSurface,
-    navigationIconContentColor = Brand.OnSurface,
-    actionIconContentColor = Brand.OnSurface,
-    scrolledContainerColor = Brand.BgLight,
+    containerColor = Brand.Green,
+    titleContentColor = Color.White,
+    navigationIconContentColor = Color.White,
+    actionIconContentColor = Color.White,
+    scrolledContainerColor = Brand.Green,
 )
 
 @Composable

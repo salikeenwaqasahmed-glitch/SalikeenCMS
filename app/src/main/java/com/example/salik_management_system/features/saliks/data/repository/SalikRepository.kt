@@ -79,6 +79,19 @@ class SalikRepository @Inject constructor(
         return watchAll(session)
     }
 
+    suspend fun searchDirectory(query: String): List<Salik> {
+        val q = query.trim()
+        if (q.isEmpty()) return emptyList()
+        // Simple FTS formatting: append * for prefix search
+        val ftsQuery = q.split(" ").filter { it.isNotBlank() }.joinToString(" ") { "$it*" }
+        return try {
+            salikDao.search(ftsQuery).map { it.toDomain() }
+        } catch (e: Exception) {
+            AppLog.e("SalikRepo", "FTS Search failed: ${e.message}")
+            emptyList()
+        }
+    }
+
     suspend fun getById(id: String): Salik? {
         val row = salikDao.getById(id) ?: return null
         if (row.syncStatus == SyncStatus.pendingDelete) return null
@@ -122,7 +135,6 @@ class SalikRepository @Inject constructor(
     suspend fun update(salik: Salik, session: UserSession?) {
         AppLog.d("SalikRepository", "Updating salik: ${salik.salikId} (${salik.name})")
         
-        ensureLocal(salik.salikId)
         val existingRow = salikDao.getById(salik.salikId)
         if (existingRow == null) {
             AppLog.e("SalikRepository", "Update failed: Salik ${salik.salikId} not found in DB")
@@ -261,11 +273,8 @@ class SalikRepository @Inject constructor(
             }
             if (!allowed) throw SalikPermissionException("Cannot delete salik")
         }
-        var existing = salikDao.getById(id)
-        if (existing == null) {
-            ensureLocal(id)
-            existing = salikDao.getById(id) ?: return
-        }
+        val existing = salikDao.getById(id) ?: return
+
         if (existing.syncStatus == SyncStatus.pendingCreate) {
             salikDao.deleteById(id)
             syncQueueDao.deleteForDoc("saliks", id)
@@ -279,7 +288,6 @@ class SalikRepository @Inject constructor(
         if (session != null && !AccessControl.canUpdate(session.role)) {
             throw SalikPermissionException("Cannot update salik")
         }
-        ensureLocal(id)
         val existing = salikDao.getById(id) ?: return
         if (existing.approvalStatus != ApprovalStatus.Approved.toFirestore()) {
             throw SalikPermissionException("Cannot toggle inactive pending salik")

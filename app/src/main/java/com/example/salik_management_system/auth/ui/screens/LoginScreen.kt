@@ -294,13 +294,13 @@ fun LoginScreen(
                     shape = MaterialTheme.shapes.small,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PrimaryGreen,
-                        contentColor = Color.White,
+                        contentColor = AccentGold,
                     ),
                 ) {
                     if (uiState.isLoading) {
                         CircularProgressIndicator(
                             modifier = Modifier.height(22.dp),
-                            color = Color.White,
+                            color = AccentGold,
                             strokeWidth = 2.dp,
                         )
                     } else {

@@ -1,5 +1,10 @@
 package com.example.salik_management_system.ui.components
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,11 +26,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +44,41 @@ import androidx.compose.ui.unit.dp
 import com.example.salik_management_system.ui.theme.Brand
 import com.example.salik_management_system.ui.theme.Dimens
 import com.example.salik_management_system.ui.theme.PrimaryGreen
+
+fun Modifier.shimmerLoadingAnimation(): Modifier = composed {
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val translateAnim by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerTranslate"
+    )
+
+    val shimmerColors = listOf(
+        Color.LightGray.copy(alpha = 0.6f),
+        Color.LightGray.copy(alpha = 0.2f),
+        Color.LightGray.copy(alpha = 0.6f),
+    )
+
+    val brush = Brush.linearGradient(
+        colors = shimmerColors,
+        start = Offset.Zero,
+        end = Offset(x = translateAnim, y = translateAnim)
+    )
+
+    background(brush = brush)
+}
+
+@Composable
+fun rememberHaptic(): () -> Unit {
+    val haptic = LocalHapticFeedback.current
+    return {
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+    }
+}
 
 @Composable
 fun SectionHeader(
@@ -76,15 +122,18 @@ fun StatTile(
     count: Int,
     icon: ImageVector,
     modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surface,
+    iconContainerColor: Color = Brand.Gold,
+    iconColor: Color = Brand.Green,
     onClick: (() -> Unit)? = null,
 ) {
     Surface(
         modifier = modifier
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(Dimens.cardRadius),
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        color = containerColor,
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
+        shadowElevation = 2.dp,
     ) {
         Column(
             modifier = Modifier
@@ -97,13 +146,13 @@ fun StatTile(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(Brand.GreenContainer),
+                    .background(iconContainerColor),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = Brand.OnGreenContainer,
+                    tint = iconColor,
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -112,7 +161,7 @@ fun StatTile(
                     text = "$count",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = Brand.Green,
                 )
                 Text(
                     text = label,
@@ -291,7 +340,7 @@ fun ProfileHeaderCard(
                 Text(
                     text = name.take(1).uppercase().ifEmpty { "?" },
                     style = MaterialTheme.typography.titleLarge,
-                    color = Color.White,
+                    color = Brand.Gold,
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -330,15 +379,15 @@ fun BrandMark(
     modifier: Modifier = Modifier,
     onDark: Boolean = true,
 ) {
-    val fg = if (onDark) Color.White else MaterialTheme.colorScheme.primary
-    val accent = if (onDark) Color(0xFFE8C547) else MaterialTheme.colorScheme.secondary
+    val fg = if (onDark) Brand.Gold else MaterialTheme.colorScheme.primary
+    val accent = if (onDark) Brand.Gold else MaterialTheme.colorScheme.secondary
     Box(
         modifier = modifier
             .size(Dimens.heroBrandMark)
             .clip(RoundedCornerShape(14.dp))
             .background(
                 if (onDark) {
-                    Color.White.copy(alpha = 0.12f)
+                    PrimaryGreen
                 } else {
                     MaterialTheme.colorScheme.primaryContainer
                 },

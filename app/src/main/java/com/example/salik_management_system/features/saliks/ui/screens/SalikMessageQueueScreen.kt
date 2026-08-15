@@ -35,6 +35,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.salik_management_system.core.utils.ContactLauncher
 import com.example.salik_management_system.features.saliks.ui.viewmodel.SalikListViewModel
+import com.example.salik_management_system.ui.theme.brandTopAppBarColors
 
 enum class MessageChannel { WhatsApp, Sms }
 
@@ -74,6 +75,7 @@ fun SalikMessageQueueScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
+                colors = brandTopAppBarColors(),
             )
         },
     ) { padding ->

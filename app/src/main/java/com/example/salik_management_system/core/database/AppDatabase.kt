@@ -11,6 +11,7 @@ import androidx.room.RoomDatabase
         LocalBazamEntity::class,
         SyncQueueEntity::class,
         LocalAppKvEntity::class,
+        SalikFtsEntity::class,
     ],
     version = 1,
     exportSchema = false,

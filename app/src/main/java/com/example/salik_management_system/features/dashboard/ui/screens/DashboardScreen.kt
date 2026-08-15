@@ -31,7 +31,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -75,7 +74,7 @@ fun DashboardScreen(
                 FloatingActionButton(
                     onClick = onAddSalik,
                     containerColor = Brand.Green,
-                    contentColor = Color.White,
+                    contentColor = Brand.Gold,
                     elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = "Add salik")
@@ -118,31 +117,31 @@ fun DashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     StatTile(
-                        "Total",
-                        state.stats.total,
-                        Icons.Filled.People,
-                        Modifier.weight(1f),
-                        onOpenSaliks,
+                        label = "Total",
+                        count = state.stats.total,
+                        icon = Icons.Filled.People,
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenSaliks,
                     )
                     if (showGenderSplit) {
                         StatTile(
-                            "Male",
-                            state.stats.maleCount,
-                            Icons.Filled.People,
-                            Modifier.weight(1f),
+                            label = "Male",
+                            count = state.stats.maleCount,
+                            icon = Icons.Filled.People,
+                            modifier = Modifier.weight(1f),
                         )
                         StatTile(
-                            "Female",
-                            state.stats.femaleCount,
-                            Icons.Filled.People,
-                            Modifier.weight(1f),
+                            label = "Female",
+                            count = state.stats.femaleCount,
+                            icon = Icons.Filled.People,
+                            modifier = Modifier.weight(1f),
                         )
                     } else {
                         StatTile(
-                            "Nafi Asbat",
-                            state.stats.nafiAsbatCount,
-                            Icons.Filled.VolunteerActivism,
-                            Modifier.weight(1f),
+                            label = "Nafi Asbat",
+                            count = state.stats.nafiAsbatCount,
+                            icon = Icons.Filled.VolunteerActivism,
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }
@@ -152,21 +151,31 @@ fun DashboardScreen(
                 ) {
                     if (showGenderSplit) {
                         StatTile(
-                            "Nafi Asbat",
-                            state.stats.nafiAsbatCount,
-                            Icons.Filled.VolunteerActivism,
-                            Modifier.weight(1f),
+                            label = "Nafi Asbat",
+                            count = state.stats.nafiAsbatCount,
+                            icon = Icons.Filled.VolunteerActivism,
+                            modifier = Modifier.weight(1f),
                         )
                     }
                     StatTile(
-                        "Sahib-e-Mehfil",
-                        state.stats.sahibMehfilCount,
-                        Icons.Filled.Star,
-                        Modifier.weight(1f),
+                        label = "Sahib-e-Mehfil",
+                        count = state.stats.sahibMehfilCount,
+                        icon = Icons.Filled.Star,
+                        modifier = Modifier.weight(1f),
                     )
                     if (!showGenderSplit) {
                         Spacer(modifier = Modifier.weight(1f))
                     }
+                }
+            }
+
+            if (showGenderSplit) {
+                IosCardSection(title = "Gender Distribution") {
+                    GenderDonutChart(
+                        male = state.stats.maleCount,
+                        female = state.stats.femaleCount,
+                        modifier = Modifier.padding(Dimens.md)
+                    )
                 }
             }
 

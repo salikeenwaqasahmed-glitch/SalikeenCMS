@@ -70,4 +70,14 @@ interface LocalSalikDao {
 
     @Query("DELETE FROM local_saliks")
     suspend fun deleteAll()
+
+    @Query(
+        """
+        SELECT local_saliks.* FROM local_saliks
+        JOIN saliks_fts ON local_saliks.rowid = saliks_fts.rowid
+        WHERE saliks_fts MATCH :query
+        AND local_saliks.sync_status != '${SyncStatus.pendingDelete}'
+        """,
+    )
+    suspend fun search(query: String): List<LocalSalikEntity>
 }

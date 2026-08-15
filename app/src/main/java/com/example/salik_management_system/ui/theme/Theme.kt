@@ -13,48 +13,48 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-/** Brand — deep forest + restrained gold accent (enterprise CMS). */
-val PrimaryGreen = Color(0xFF003527)
-val PrimaryGreenLight = Color(0xFF0A5C44)
-val AccentGold = Color(0xFFE8C547)
-val AccentGoldMuted = Color(0xFFC9A227)
+/** Brand — vibrant forest green + golden accent. */
+val PrimaryGreen = Color(0xFF006400)
+val PrimaryGreenLight = Color(0xFF008000)
+val AccentGold = Color(0xFFFFD700)
+val AccentGoldMuted = Color(0xFFDAA520)
 
 private val LightColorScheme = lightColorScheme(
     primary = PrimaryGreen,
-    onPrimary = Color.White,
-    primaryContainer = Brand.GreenContainer,
-    onPrimaryContainer = Brand.OnGreenContainer,
-    secondary = AccentGoldMuted,
-    onSecondary = Color(0xFF1A1500),
-    secondaryContainer = Color(0xFFFFF0C2),
-    onSecondaryContainer = Color(0xFF241A00),
+    onPrimary = AccentGold,
+    primaryContainer = Color(0xFFE8F5E9),
+    onPrimaryContainer = PrimaryGreen,
+    secondary = AccentGold,
+    onSecondary = Color.Black,
+    secondaryContainer = Color(0xFFFFF9C4),
+    onSecondaryContainer = Color(0xFF332D00),
     tertiary = PrimaryGreenLight,
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFC5E8D8),
-    onTertiaryContainer = Brand.OnGreenContainer,
-    background = Brand.BgLight,
-    onBackground = Brand.OnSurface,
-    surface = Brand.Surface,
-    onSurface = Brand.OnSurface,
-    surfaceVariant = Color(0xFFE8EEEC),
-    onSurfaceVariant = Brand.OnSurfaceVariant,
+    onTertiary = AccentGold,
+    tertiaryContainer = Color(0xFFC8E6C9),
+    onTertiaryContainer = Color(0xFF002106),
+    background = Color.White,
+    onBackground = Color(0xFF1A1C1E),
+    surface = Color.White,
+    onSurface = Color(0xFF1A1C1E),
+    surfaceVariant = Color(0xFFF1F0F4),
+    onSurfaceVariant = Color(0xFF44474E),
     surfaceTint = Color.Transparent,
-    surfaceBright = Brand.Surface,
-    surfaceDim = Color(0xFFDCE5E1),
-    surfaceContainerLowest = Brand.Surface,
-    surfaceContainerLow = Color(0xFFE8EEEC),
-    surfaceContainer = Color(0xFFE2EAE6),
-    surfaceContainerHigh = Color(0xFFDCE5E1),
-    surfaceContainerHighest = Color(0xFFD0DBD5),
-    outline = Color(0xFF6F7B75),
-    outlineVariant = Brand.OutlineVariant,
+    surfaceBright = Color.White,
+    surfaceDim = Color(0xFFDCD9DE),
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFF7F2F7),
+    surfaceContainer = Color(0xFFF1EDF2),
+    surfaceContainerHigh = Color(0xFFEBE7EC),
+    surfaceContainerHighest = Color(0xFFE5E1E6),
+    outline = Color(0xFF74777F),
+    outlineVariant = Color(0xFFC4C6CF),
     error = Color(0xFFBA1A1A),
     onError = Color.White,
     errorContainer = Color(0xFFFFDAD6),
     onErrorContainer = Color(0xFF410002),
-    inverseSurface = Color(0xFF2D322F),
-    inverseOnSurface = Color(0xFFEFF1EE),
-    inversePrimary = Brand.GreenDark,
+    inverseSurface = Color(0xFF2F3033),
+    inverseOnSurface = Color(0xFFF1F0F4),
+    inversePrimary = Color(0xFF90D2A6),
     scrim = Color(0x99000000),
 )
 

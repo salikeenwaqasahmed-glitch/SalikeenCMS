@@ -29,6 +29,7 @@ data class SalikProfileUiState(
     val canApprove: Boolean = false,
     val canUpdate: Boolean = false,
     val canDelete: Boolean = false,
+    val isLoading: Boolean = true,
     val message: String? = null,
 )
 
@@ -58,6 +59,7 @@ class SalikProfileViewModel @Inject constructor(
                 salik?.isPending == true,
             canUpdate = session != null && AccessControl.canUpdate(session.role),
             canDelete = session != null && AccessControl.canDelete(session.role),
+            isLoading = false,
             message = message,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SalikProfileUiState())

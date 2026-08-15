@@ -237,8 +237,8 @@ private fun SalikBottomBar(
 
     val itemColors = brandNavItemColors()
     NavigationBar(
-        containerColor = Brand.Surface,
-        contentColor = Brand.OnSurface,
+        containerColor = Brand.Green,
+        contentColor = Brand.Gold,
         tonalElevation = 0.dp,
     ) {
         items.forEach { item ->

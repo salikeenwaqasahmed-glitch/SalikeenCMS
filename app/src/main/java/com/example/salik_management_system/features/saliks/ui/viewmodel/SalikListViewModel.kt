@@ -53,6 +53,7 @@ data class SalikListUiState(
     val totalCount: Int = 0,
     val totalPages: Int = 1,
     val canCreate: Boolean = false,
+    val isLoading: Boolean = false,
     val message: String? = null,
 )
 
@@ -94,11 +95,14 @@ class SalikListViewModel @Inject constructor(
                 val totalPages = ceil(total / PAGE_SIZE.toDouble()).toInt().coerceAtLeast(1)
                 val safePage = page.coerceIn(1, totalPages)
                 val from = (safePage - 1) * PAGE_SIZE
+                
+                // Regular pagination: show only the current page's slice
                 val pageItems = if (from >= total) {
                     emptyList()
                 } else {
                     filtered.subList(from, minOf(from + PAGE_SIZE, total))
                 }
+
                 SalikListUiState(
                     session = session,
                     saliks = filtered,
@@ -113,6 +117,7 @@ class SalikListViewModel @Inject constructor(
                     totalCount = total,
                     totalPages = totalPages,
                     canCreate = session != null && AccessControl.canCreate(session.role),
+                    isLoading = saliks.isEmpty() && session != null,
                     message = message,
                 )
             }

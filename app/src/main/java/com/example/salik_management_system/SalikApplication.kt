@@ -39,9 +39,6 @@ class SalikApplication : Application() {
             // 1. Warm up session / user profile to ensure data is ready for screens
             authRepository.fetchSession()
             
-            // 2. Perform initial background sync if device is online
-            syncService.syncNow()
-            
             AppLog.i("Application", "Bootstrap complete")
         } catch (e: Exception) {
             AppLog.e("Application", "Bootstrap failed: ${e.message}", e)
