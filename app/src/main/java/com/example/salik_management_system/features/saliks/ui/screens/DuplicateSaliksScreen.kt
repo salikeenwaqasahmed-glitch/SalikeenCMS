@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -29,8 +30,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.salik_management_system.ui.components.IosGroupedCard
 import com.example.salik_management_system.features.saliks.ui.viewmodel.SalikListViewModel
+import com.example.salik_management_system.ui.components.IosGroupedCard
+import com.example.salik_management_system.ui.components.SectionHeader
+import com.example.salik_management_system.ui.components.EmptyState
 import com.example.salik_management_system.ui.theme.brandTopAppBarColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,23 +58,28 @@ fun DuplicateSaliksScreen(
             )
         },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(groups, key = { it.id }) { group ->
-                val keepId = keepByGroup[group.id] ?: group.saliks.first().salikId
-                IosGroupedCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            "${group.label} · ${group.reasons.joinToString { it.name }}",
-                            style = MaterialTheme.typography.titleSmall,
+        if (groups.isEmpty()) {
+            EmptyState(
+                title = "No duplicates found",
+                subtitle = "All salik records appear unique.",
+                icon = Icons.Filled.ContentCopy,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(groups, key = { it.id }) { group ->
+                    val keepId = keepByGroup[group.id] ?: group.saliks.first().salikId
+                    IosGroupedCard(modifier = Modifier.fillMaxWidth()) {
+                        SectionHeader(
+                            title = "${group.label} · ${group.reasons.joinToString { it.name }}",
                         )
                         group.saliks.forEach { salik ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -101,11 +109,6 @@ fun DuplicateSaliksScreen(
                             Text("Merge into selected")
                         }
                     }
-                }
-            }
-            if (groups.isEmpty()) {
-                item {
-                    Text("No duplicates found", style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }

@@ -62,9 +62,14 @@ class SalikProfileViewModel @Inject constructor(
             isLoading = false,
             message = message,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SalikProfileUiState())
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        SalikProfileUiState(session = authRepository.session.value)
+    )
 
     fun approve() = act { s, session ->
+
         salikRepository.approve(s.salikId, session)
         _message.value = "Approved"
     }

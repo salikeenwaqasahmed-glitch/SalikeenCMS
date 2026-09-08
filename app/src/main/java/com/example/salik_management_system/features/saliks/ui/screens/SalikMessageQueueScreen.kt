@@ -35,6 +35,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.salik_management_system.core.utils.ContactLauncher
 import com.example.salik_management_system.features.saliks.ui.viewmodel.SalikListViewModel
+import com.example.salik_management_system.ui.components.AppCard
+import com.example.salik_management_system.ui.components.EmptyState
 import com.example.salik_management_system.ui.theme.brandTopAppBarColors
 
 enum class MessageChannel { WhatsApp, Sms }
@@ -86,71 +88,76 @@ fun SalikMessageQueueScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                if (queue.isEmpty()) {
-                    "No saliks in queue — open from directory selection or browse first."
-                } else {
-                    "${index + 1} / ${queue.size}"
-                },
-                style = MaterialTheme.typography.titleMedium,
-            )
+            if (queue.isEmpty()) {
+                EmptyState(
+                    title = "No saliks in queue",
+                    subtitle = "Open from directory selection or browse first.",
+                )
+            } else {
+                Text(
+                    "${index + 1} / ${queue.size}",
+                    style = MaterialTheme.typography.titleMedium,
+                )
 
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                MessageChannel.entries.forEachIndexed { i, item ->
-                    SegmentedButton(
-                        selected = channel == item,
-                        onClick = { channel = item },
-                        shape = SegmentedButtonDefaults.itemShape(
-                            index = i,
-                            count = MessageChannel.entries.size,
-                        ),
-                    ) {
-                        Text(item.name)
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    MessageChannel.entries.forEachIndexed { i, item ->
+                        SegmentedButton(
+                            selected = channel == item,
+                            onClick = { channel = item },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = i,
+                                count = MessageChannel.entries.size,
+                            ),
+                        ) {
+                            Text(item.name)
+                        }
                     }
                 }
-            }
 
-            OutlinedTextField(
-                value = template,
-                onValueChange = { template = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Message template") },
-                minLines = 3,
-            )
+                OutlinedTextField(
+                    value = template,
+                    onValueChange = { template = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Message template") },
+                    minLines = 3,
+                )
 
-            if (current != null) {
-                Text(current.name, style = MaterialTheme.typography.headlineSmall)
-                Text(current.mobileNumber.ifBlank { current.whatsappNumber })
+                if (current != null) {
+                    AppCard {
+                        Text(current.name, style = MaterialTheme.typography.headlineSmall)
+                        Text(current.mobileNumber.ifBlank { current.whatsappNumber })
+                    }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = {
-                            val phone = current.whatsappNumber.ifBlank { current.mobileNumber }
-                            val intent = when (channel) {
-                                MessageChannel.WhatsApp ->
-                                    ContactLauncher.whatsappIntent(phone, template)
-                                MessageChannel.Sms ->
-                                    ContactLauncher.smsIntent(phone, template)
-                            }
-                            ContactLauncher.launch(context, intent)
-                            if (index < queue.lastIndex) index++
-                        },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text("Send / Open")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                val phone = current.whatsappNumber.ifBlank { current.mobileNumber }
+                                val intent = when (channel) {
+                                    MessageChannel.WhatsApp ->
+                                        ContactLauncher.whatsappIntent(phone, template)
+                                    MessageChannel.Sms ->
+                                        ContactLauncher.smsIntent(phone, template)
+                                }
+                                ContactLauncher.launch(context, intent)
+                                if (index < queue.lastIndex) index++
+                            },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Send / Open")
+                        }
+                        OutlinedButton(
+                            onClick = { if (index < queue.lastIndex) index++ },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Skip")
+                        }
                     }
                     OutlinedButton(
-                        onClick = { if (index < queue.lastIndex) index++ },
-                        modifier = Modifier.weight(1f),
+                        onClick = onBack,
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Skip")
+                        Text("Done")
                     }
-                }
-                OutlinedButton(
-                    onClick = onBack,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Done")
                 }
             }
         }

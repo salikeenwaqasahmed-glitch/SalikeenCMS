@@ -19,4 +19,15 @@ object Dimens {
     val listRowMinHeight = 52.dp
     val heroBrandMark = 56.dp
     val statTileMinHeight = 104.dp
+
+    // Aliases for shared components
+    val space4 = xxs
+    val space8 = xs
+    val space12 = sm
+    val space16 = md
+    val space20 = lg
+    val space24 = xl
+    val cardElevation = 2.dp
+    val cardBorderWidth = 1.dp
+    val filterChipRadius = cardRadius
 }

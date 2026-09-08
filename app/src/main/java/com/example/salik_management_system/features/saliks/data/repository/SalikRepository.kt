@@ -82,7 +82,6 @@ class SalikRepository @Inject constructor(
     suspend fun searchDirectory(query: String): List<Salik> {
         val q = query.trim()
         if (q.isEmpty()) return emptyList()
-        // Simple FTS formatting: append * for prefix search
         val ftsQuery = q.split(" ").filter { it.isNotBlank() }.joinToString(" ") { "$it*" }
         return try {
             salikDao.search(ftsQuery).map { it.toDomain() }

@@ -355,11 +355,32 @@ class AuthRepository @Inject constructor(
         val doc = firestore.collection("users").document(uid).get().await()
         if (!doc.exists() || doc.data == null) {
             auth.signOut()
+            logMissingProfileHint(email, uid)
             throw ProfileNotFoundException()
         }
 
         val session = UserSession.fromMap(uid, doc.data!!)
         return syncUserProfileWithFirebase(session, password = password)
+    }
+
+    private suspend fun logMissingProfileHint(email: String, uid: String) {
+        AppLog.w(TAG, "Staff profile missing at users/$uid for $email")
+        try {
+            val byEmail = firestore.collection("users")
+                .whereEqualTo("email", email)
+                .limit(1)
+                .get()
+                .await()
+            if (!byEmail.isEmpty) {
+                val wrongDocId = byEmail.documents.first().id
+                AppLog.w(
+                    TAG,
+                    "Profile found at users/$wrongDocId but must use Firebase Auth UID users/$uid",
+                )
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "profile email lookup failed: $e")
+        }
     }
 
     /**

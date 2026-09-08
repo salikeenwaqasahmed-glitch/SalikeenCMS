@@ -57,6 +57,7 @@ import com.example.salik_management_system.ui.components.StatusTone
 import com.example.salik_management_system.ui.theme.AccentGold
 import com.example.salik_management_system.ui.theme.Dimens
 import com.example.salik_management_system.ui.theme.PrimaryGreen
+import com.example.salik_management_system.ui.theme.LightSystemBarIcons
 import com.example.salik_management_system.ui.theme.PrimaryGreenLight
 
 @Composable
@@ -64,6 +65,8 @@ fun LoginScreen(
     onLoggedIn: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel(),
 ) {
+    LightSystemBarIcons()
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
 

@@ -13,8 +13,8 @@ import androidx.room.RoomDatabase
         LocalAppKvEntity::class,
         SalikFtsEntity::class,
     ],
-    version = 1,
-    exportSchema = false,
+    version = 2,
+    exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun localUserDao(): LocalUserDao

@@ -12,8 +12,9 @@ object AppConfig {
     val isDev: Boolean
         get() = !isProd
 
-    /** Room database file name (parity with Flutter driftDbName). */
+    /** Room database file name. */
     val roomDbName: String
+
         get() = if (isProd) "salik_crm_local_prod" else "salik_crm_local_dev"
 
     /** Internal / log label. */

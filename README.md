@@ -1,6 +1,6 @@
 # Salikeen CMS (Kotlin / Jetpack Compose)
 
-Native Android app. Offline-first Room + Firebase Auth/Firestore. Manual Sync only.
+Native Android app for Salik Management System. Offline-first Room + Firebase Auth/Firestore. Manual Sync only.
 
 ## Stack
 
@@ -108,3 +108,10 @@ Optional Firestore `users/{uid}.password`: if set, wins on next online login; if
 - [ ] Dev + Real APKs install side-by-side
 - [ ] Sync pulls bazam/area; empty directory copy OK
 - [ ] Settings shows name + role (not email); DEV chip only on Dev
+- [ ] Create salik offline → Sync push
+- [ ] Editor pending → approver approve
+- [ ] Dashboard bazam → areas → directory
+- [ ] Message queue opens WhatsApp/SMS
+- [ ] CSV export share sheet
+- [ ] Dark mode toggle persists
+- [ ] Status bar icons readable in light + dark mode

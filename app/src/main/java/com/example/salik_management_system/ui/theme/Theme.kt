@@ -8,6 +8,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
@@ -119,9 +120,27 @@ fun SalikTheme(
         typography = SalikTypography,
         shapes = SalikShapes,
     ) {
-        // Inside MaterialTheme so tonal overlay cannot re-enable purple wash.
         CompositionLocalProvider(LocalTonalElevationEnabled provides false) {
             content()
+        }
+    }
+}
+
+/** Forces light (white) status/navigation bar icons on dark backgrounds (e.g. Login). */
+@Composable
+fun LightSystemBarIcons() {
+    val view = LocalView.current
+    if (view.isInEditMode) return
+    DisposableEffect(Unit) {
+        val window = (view.context as Activity).window
+        val controller = WindowCompat.getInsetsController(window, view)
+        val previousStatus = controller.isAppearanceLightStatusBars
+        val previousNav = controller.isAppearanceLightNavigationBars
+        controller.isAppearanceLightStatusBars = false
+        controller.isAppearanceLightNavigationBars = false
+        onDispose {
+            controller.isAppearanceLightStatusBars = previousStatus
+            controller.isAppearanceLightNavigationBars = previousNav
         }
     }
 }

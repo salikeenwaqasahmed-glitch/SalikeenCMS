@@ -34,4 +34,14 @@
     <string name="internet_required">Internet required for first login on this device.</string>
     <string name="sync_success">Sync complete</string>
     <string name="sync_failed">Sync failed</string>
+    <string name="offline_banner">Offline — browsing cached data</string>
+    <string name="overview">Overview</string>
+    <string name="by_bazam">By bazam</string>
+    <string name="account">Account</string>
+    <string name="appearance">Appearance</string>
+    <string name="data">Data</string>
+    <string name="about">About</string>
+    <string name="no_saliks_found">No saliks found</string>
+    <string name="nothing_pending">Nothing pending</string>
+    <string name="loading">Loading…</string>
 </resources>

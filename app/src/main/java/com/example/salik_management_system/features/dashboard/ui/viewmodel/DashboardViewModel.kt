@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
@@ -39,6 +40,8 @@ data class DashboardUiState(
     val pendingCount: Int = 0,
     val canCreate: Boolean = false,
     val canViewPending: Boolean = false,
+    val isLoading: Boolean = true,
+    val errorMessage: String? = null,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -58,9 +61,15 @@ class DashboardViewModel @Inject constructor(
                 buildState(session, approved, pending, bazams)
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
+        .onStart { emit(DashboardUiState(session = authRepository.session.value, isLoading = true)) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            DashboardUiState(session = authRepository.session.value, isLoading = true),
+        )
 
     private fun buildState(
+
         session: UserSession?,
         approved: List<Salik>,
         pending: List<Salik>,
@@ -90,6 +99,7 @@ class DashboardViewModel @Inject constructor(
             pendingCount = pending.count { it.isPending },
             canCreate = session != null && AccessControl.canCreate(session.role),
             canViewPending = session != null && AccessControl.canViewPending(session.role),
+            isLoading = false,
         )
     }
 }

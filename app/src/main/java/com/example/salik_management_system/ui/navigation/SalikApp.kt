@@ -32,17 +32,18 @@ fun SalikApp(
 
     fun goLogin() {
         navController.navigate(SalikRoutes.Login) {
-            popUpTo(0) { inclusive = true }
+            popUpTo(navController.graph.id) { inclusive = true }
             launchSingleTop = true
         }
     }
 
     fun goDashboard() {
         navController.navigate(SalikRoutes.Dashboard) {
-            popUpTo(SalikRoutes.Login) { inclusive = true }
+            popUpTo(navController.graph.id) { inclusive = true }
             launchSingleTop = true
         }
     }
+
 
     LaunchedEffect(uiState.isBootstrapping, session?.uid) {
         if (uiState.isBootstrapping) return@LaunchedEffect

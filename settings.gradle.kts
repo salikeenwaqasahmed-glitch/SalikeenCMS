@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SalikManagementSystem"
+rootProject.name = "SalikeenCMS"
 include(":app")

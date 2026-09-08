@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -34,6 +35,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
+import com.example.salik_management_system.R
 import com.example.salik_management_system.auth.ui.screens.LoginScreen
 import com.example.salik_management_system.features.dashboard.ui.screens.DashboardScreen
 import com.example.salik_management_system.features.saliks.ui.screens.AddEditSalikScreen
@@ -134,15 +136,33 @@ fun SalikNavGraph(
                     BazamAreasScreen(
                         bazamId = bazamId,
                         onBack = { navController.popBackStack() },
-                        onOpenDirectory = {
-                            navController.navigate(SalikRoutes.Saliks) {
+                        onOpenDirectory = { areaId ->
+                            navController.navigate(SalikRoutes.saliks(areaId = areaId, bazamId = bazamId)) {
                                 launchSingleTop = true
                             }
                         },
                     )
                 }
-                composable(SalikRoutes.Saliks) {
+                composable(
+                    route = SalikRoutes.Saliks,
+                    arguments = listOf(
+                        navArgument("areaId") {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                        navArgument("bazamId") {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        }
+                    ),
+                ) { entry ->
+                    val areaId = entry.arguments?.getString("areaId")
+                    val bazamId = entry.arguments?.getString("bazamId")
                     SalikDirectoryScreen(
+//                        initialAreaId = areaId,
+//                        initialBazamId = bazamId,
                         onOpenProfile = { id ->
                             navController.navigate(SalikRoutes.salikProfile(id))
                         },
@@ -230,9 +250,9 @@ private fun SalikBottomBar(
     onSync: () -> Unit,
 ) {
     val items = listOf(
-        BottomItem(SalikRoutes.Dashboard, "Dashboard", Icons.Filled.Home),
-        BottomItem(SalikRoutes.Saliks, "Saliks", Icons.Filled.Person),
-        BottomItem(SalikRoutes.Settings, "Settings", Icons.Filled.Settings),
+        BottomItem(SalikRoutes.Dashboard, stringResource(R.string.dashboard), Icons.Filled.Home),
+        BottomItem(SalikRoutes.Saliks, stringResource(R.string.saliks), Icons.Filled.Person),
+        BottomItem(SalikRoutes.Settings, stringResource(R.string.settings), Icons.Filled.Settings),
     )
 
     val itemColors = brandNavItemColors()
@@ -250,11 +270,12 @@ private fun SalikBottomBar(
                 colors = itemColors,
             )
         }
+
         NavigationBarItem(
             selected = false,
             onClick = onSync,
-            icon = { Icon(Icons.Filled.Refresh, contentDescription = "Sync") },
-            label = { Text("Sync") },
+            icon = { Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.sync)) },
+            label = { Text(stringResource(R.string.sync)) },
             colors = itemColors,
         )
     }

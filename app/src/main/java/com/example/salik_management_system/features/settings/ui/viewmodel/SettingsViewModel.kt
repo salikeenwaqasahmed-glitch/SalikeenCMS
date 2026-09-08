@@ -71,9 +71,14 @@ class SettingsViewModel @Inject constructor(
         )
     }.combine(_message) { state, msg -> state.copy(message = msg) }
         .combine(_contactPreview) { state, contacts -> state.copy(contactPreview = contacts) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            SettingsUiState(session = authRepository.session.value)
+        )
 
     fun toggleDarkMode() {
+
         viewModelScope.launch { themePreferences.toggle() }
     }
 
@@ -103,16 +108,20 @@ class SettingsViewModel @Inject constructor(
 
     fun exportCsv(onReady: (Intent) -> Unit) {
         viewModelScope.launch {
-            val session = authRepository.session.value
-            val saliks = salikRepository.watchApproved(session).first()
-            val areas = areaRepository.watchAreas().first().associateBy { it.areaId }
-            val csv = SalikCsvExport.build(saliks, areas)
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/csv"
-                putExtra(Intent.EXTRA_SUBJECT, "Saliks export")
-                putExtra(Intent.EXTRA_TEXT, csv)
+            try {
+                val session = authRepository.session.value
+                val saliks = salikRepository.watchApproved(session).first()
+                val areas = areaRepository.watchAreas().first().associateBy { it.areaId }
+                val csv = SalikCsvExport.build(saliks, areas)
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/csv"
+                    putExtra(Intent.EXTRA_SUBJECT, "Saliks export")
+                    putExtra(Intent.EXTRA_TEXT, csv)
+                }
+                onReady(Intent.createChooser(intent, "Export CSV"))
+            } catch (e: Exception) {
+                _message.value = e.message ?: "Export failed"
             }
-            onReady(Intent.createChooser(intent, "Export CSV"))
         }
     }
 
