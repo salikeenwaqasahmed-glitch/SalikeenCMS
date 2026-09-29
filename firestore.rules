@@ -304,6 +304,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
+      // Profile + optional `password` string (Console / login seed). Self may merge
+      // password while email+role stay fixed; admin may update any fields.
       allow read: if signedIn() && (
         request.auth.uid == userId
         || (hasUserDoc() && (isAdmin() || isApprover() || isEditor()))
@@ -313,6 +315,8 @@ service cloud.firestore {
         && request.resource.data.email.size() > 0
         && request.resource.data.role in ['approval', 'genderAdmin', 'editor', 'admin', 'crudUser']
         && request.resource.data.gender in ['Male', 'Female']
+        && (!('password' in request.resource.data)
+          || request.resource.data.password is string)
         && (
           !('email' in request.auth.token)
           || request.auth.token.email == request.resource.data.email
@@ -322,6 +326,8 @@ service cloud.firestore {
         (request.auth.uid == userId
           && request.resource.data.email == resource.data.email
           && request.resource.data.role == resource.data.role
+          && (!('password' in request.resource.data)
+            || request.resource.data.password is string)
           && (
             !('email' in request.auth.token)
             || request.resource.data.email == request.auth.token.email

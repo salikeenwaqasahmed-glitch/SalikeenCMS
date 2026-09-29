@@ -1,0 +1,386 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "f4e3d2c1b0a9876543210fedcba987654",
+    "entities": [
+      {
+        "tableName": "local_users",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uid` TEXT NOT NULL, `email` TEXT NOT NULL, `name` TEXT NOT NULL, `role` TEXT NOT NULL, `gender` TEXT NOT NULL, `password_hash` TEXT NOT NULL, `last_synced_at` INTEGER, PRIMARY KEY(`uid`))",
+        "fields": [
+          {
+            "fieldPath": "uid",
+            "columnName": "uid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "email",
+            "columnName": "email",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "role",
+            "columnName": "role",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gender",
+            "columnName": "gender",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "passwordHash",
+            "columnName": "password_hash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSyncedAt",
+            "columnName": "last_synced_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uid"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "local_saliks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`salik_id` TEXT NOT NULL, `name` TEXT NOT NULL, `father_name` TEXT NOT NULL, `mobile_number` TEXT NOT NULL, `whatsapp_number` TEXT NOT NULL, `area_id` TEXT NOT NULL, `address` TEXT NOT NULL, `gender_id` TEXT NOT NULL, `bazam_id` TEXT NOT NULL, `date_of_baith` TEXT NOT NULL, `reference_name` TEXT NOT NULL, `is_nafi_asbat` INTEGER NOT NULL, `is_sahib_e_mehfil` INTEGER NOT NULL, `created_date` TEXT NOT NULL, `modified_date` TEXT NOT NULL, `is_active` INTEGER NOT NULL, `added_by_uid` TEXT NOT NULL, `added_by_name` TEXT NOT NULL, `approval_status` TEXT NOT NULL, `approved_by_uid` TEXT NOT NULL, `approved_by_name` TEXT NOT NULL, `approved_at` TEXT NOT NULL, `sync_status` TEXT NOT NULL, `local_updated_at` INTEGER NOT NULL, PRIMARY KEY(`salik_id`))",
+        "fields": [
+          {
+            "fieldPath": "salikId",
+            "columnName": "salik_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fatherName",
+            "columnName": "father_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mobileNumber",
+            "columnName": "mobile_number",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "whatsappNumber",
+            "columnName": "whatsapp_number",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "areaId",
+            "columnName": "area_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "address",
+            "columnName": "address",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "genderId",
+            "columnName": "gender_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bazamId",
+            "columnName": "bazam_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateOfBaith",
+            "columnName": "date_of_baith",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceName",
+            "columnName": "reference_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isNafiAsbat",
+            "columnName": "is_nafi_asbat",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isSahibEMehfil",
+            "columnName": "is_sahib_e_mehfil",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdDate",
+            "columnName": "created_date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modifiedDate",
+            "columnName": "modified_date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isActive",
+            "columnName": "is_active",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedByUid",
+            "columnName": "added_by_uid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedByName",
+            "columnName": "added_by_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "approvalStatus",
+            "columnName": "approval_status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "approvedByUid",
+            "columnName": "approved_by_uid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "approvedByName",
+            "columnName": "approved_by_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "approvedAt",
+            "columnName": "approved_at",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "sync_status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localUpdatedAt",
+            "columnName": "local_updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "salik_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "local_areas",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`area_id` TEXT NOT NULL, `area_name` TEXT NOT NULL, `bazam_id` TEXT NOT NULL, `sync_status` TEXT NOT NULL, PRIMARY KEY(`area_id`))",
+        "fields": [
+          {
+            "fieldPath": "areaId",
+            "columnName": "area_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "areaName",
+            "columnName": "area_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bazamId",
+            "columnName": "bazam_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "sync_status",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "area_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "local_bazams",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bazam_id` TEXT NOT NULL, `bazam_name` TEXT NOT NULL, `sync_status` TEXT NOT NULL, PRIMARY KEY(`bazam_id`))",
+        "fields": [
+          {
+            "fieldPath": "bazamId",
+            "columnName": "bazam_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bazamName",
+            "columnName": "bazam_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "sync_status",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "bazam_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "sync_queue",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `collection` TEXT NOT NULL, `operation` TEXT NOT NULL, `doc_id` TEXT NOT NULL, `payload_json` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `retry_count` INTEGER NOT NULL, `last_error` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collection",
+            "columnName": "collection",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operation",
+            "columnName": "operation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "docId",
+            "columnName": "doc_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadJson",
+            "columnName": "payload_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "retryCount",
+            "columnName": "retry_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "last_error",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "local_app_kv",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `value` TEXT NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f4e3d2c1b0a9876543210fedcba987654')"
+    ]
+  }
+}
