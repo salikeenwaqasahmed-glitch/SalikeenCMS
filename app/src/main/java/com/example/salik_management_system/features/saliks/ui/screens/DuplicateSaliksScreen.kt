@@ -21,6 +21,11 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.example.salik_management_system.core.utils.AccessControl
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -42,6 +47,19 @@ fun DuplicateSaliksScreen(
     onBack: () -> Unit = {},
     viewModel: SalikListViewModel = hiltViewModel(),
 ) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    if (pendingAction != null) {
+        AlertDialog(
+            onDismissRequest = { pendingAction = null },
+            title = { Text("Confirm duplicate cleanup") },
+            text = { Text("Removed records will be queued for deletion on the next sync.") },
+            confirmButton = {
+                TextButton(onClick = { val action = pendingAction; pendingAction = null; action?.invoke() }) { Text("Continue") }
+            },
+            dismissButton = { TextButton(onClick = { pendingAction = null }) { Text("Cancel") } },
+        )
+    }
     val groups by viewModel.duplicateGroups.collectAsStateWithLifecycle()
     val keepByGroup = remember { mutableStateMapOf<String, String>() }
 
@@ -75,6 +93,7 @@ fun DuplicateSaliksScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                state.message?.let { message -> item { Text(message) } }
                 items(groups, key = { it.id }) { group ->
                     val keepId = keepByGroup[group.id] ?: group.saliks.first().salikId
                     IosGroupedCard(modifier = Modifier.fillMaxWidth()) {
@@ -94,15 +113,19 @@ fun DuplicateSaliksScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                 }
-                                OutlinedButton(onClick = { viewModel.delete(salik.salikId) }) {
+                                OutlinedButton(
+                                    enabled = state.session?.let { AccessControl.canDelete(it.role) } == true,
+                                    onClick = { pendingAction = { viewModel.delete(salik.salikId) } },
+                                ) {
                                     Text("Delete")
                                 }
                             }
                         }
                         Button(
+                            enabled = state.session?.let { AccessControl.canResolveDuplicates(it.role) } == true,
                             onClick = {
                                 val remove = group.saliks.map { it.salikId }.filter { it != keepId }
-                                viewModel.mergeGroup(keepId, remove)
+                                pendingAction = { viewModel.mergeGroup(keepId, remove) }
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) {

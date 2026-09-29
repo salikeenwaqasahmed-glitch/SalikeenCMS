@@ -24,13 +24,11 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,10 +37,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,7 +57,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.salik_management_system.core.utils.ContactLauncher
+import com.example.salik_management_system.features.saliks.domain.model.SalikDates
 import com.example.salik_management_system.features.saliks.ui.viewmodel.SalikProfileViewModel
+import com.example.salik_management_system.ui.components.InlineDetailRow
 import com.example.salik_management_system.ui.components.IosGroupedCard
 import com.example.salik_management_system.ui.components.StatusChip
 import com.example.salik_management_system.ui.components.shimmerLoadingAnimation
@@ -64,9 +68,6 @@ import com.example.salik_management_system.ui.theme.Brand
 import com.example.salik_management_system.ui.theme.Dimens
 import com.example.salik_management_system.ui.theme.brandSwitchColors
 import com.example.salik_management_system.ui.theme.brandTopAppBarColors
-import java.time.LocalDate
-import java.time.Period
-import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +79,7 @@ fun SalikProfileScreen(
     viewModel: SalikProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var confirmDelete by remember { mutableStateOf(false) }
     val salik = state.salik
     val context = LocalContext.current
     val brandGreen = if (isSystemInDarkTheme()) Brand.GreenDark else Brand.Green
@@ -86,6 +88,15 @@ fun SalikProfileScreen(
         if (state.message == "Deleted") onDeleted()
     }
 
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete Salik?") },
+            text = { Text("Delete this record locally and queue its deletion for the next sync?") },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; viewModel.delete() }) { Text("Delete") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
+        )
+    }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -103,7 +114,7 @@ fun SalikProfileScreen(
                         }
                     }
                     if (state.canDelete && salik != null) {
-                        IconButton(onClick = viewModel::delete) {
+                        IconButton(onClick = { confirmDelete = true }) {
                             Icon(Icons.Filled.Delete, contentDescription = "Delete")
                         }
                     }
@@ -155,8 +166,10 @@ fun SalikProfileScreen(
             return@Scaffold
         }
 
-        val connectionInfo = remember(salik.dateOfBaith) {
-            calculateConnectionTime(salik.dateOfBaith)
+        val baithDisplay = remember(salik.dateOfBaith, salik.calculateAge()) {
+            val base = SalikDates.formatBaithDisplay(salik.dateOfBaith)
+            val age = salik.calculateAge()
+            if (age != null) "$base · Age $age" else base
         }
 
         Column(
@@ -209,35 +222,6 @@ fun SalikProfileScreen(
                 )
             }
 
-            // Connection Badge / Card
-            IosGroupedCard(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.padding(Dimens.md),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.History,
-                        contentDescription = null,
-                        tint = brandGreen,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(Dimens.sm))
-                    Column {
-                        Text(
-                            text = "Connected Since",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = connectionInfo,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = brandGreen
-                        )
-                    }
-                }
-            }
-
             // Quick Actions
             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.md), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
@@ -274,30 +258,30 @@ fun SalikProfileScreen(
             SectionTitle("Personal Information", Icons.Default.Person, brandGreen)
             IosGroupedCard {
                 Column(modifier = Modifier.padding(vertical = Dimens.xs)) {
-                    DetailRow("Father Name", salik.fatherName)
-                    DetailRow("Mobile", salik.mobileNumber)
-                    DetailRow("WhatsApp", salik.whatsappNumber)
-                    DetailRow("Gender", salik.genderId)
-                    DetailRow("Reference", salik.referenceName, isLast = true)
+                    InlineDetailRow("Father Name", salik.fatherName)
+                    InlineDetailRow("Mobile", salik.mobileNumber)
+                    InlineDetailRow("WhatsApp", salik.whatsappNumber)
+                    InlineDetailRow("Gender", salik.genderId)
+                    InlineDetailRow("Reference", salik.referenceName, isLast = true)
                 }
             }
 
             SectionTitle("Location & Bazam", Icons.Default.LocationOn, brandGreen)
             IosGroupedCard {
                 Column(modifier = Modifier.padding(vertical = Dimens.xs)) {
-                    DetailRow("Bazam", state.bazam?.bazamName ?: salik.bazamId)
-                    DetailRow("Area", state.area?.areaName ?: salik.areaId)
-                    DetailRow("Address", salik.address, isLast = true)
+                    InlineDetailRow("Bazam", state.bazam?.bazamName ?: salik.bazamId)
+                    InlineDetailRow("Area", state.area?.areaName ?: salik.areaId)
+                    InlineDetailRow("Address", salik.address, isLast = true)
                 }
             }
 
             SectionTitle("Salik Details", Icons.Default.Assignment, brandGreen)
             IosGroupedCard {
                 Column(modifier = Modifier.padding(vertical = Dimens.xs)) {
-                    DetailRow("Date of Baith", salik.dateOfBaith)
-                    DetailRow("Nafi Asbat", if (salik.isNafiAsbat) "Yes" else "No")
-                    DetailRow("Sahib-e-Mehfil", if (salik.isSahibEMehfil) "Yes" else "No")
-                    DetailRow("Added by", salik.addedByName.ifEmpty { salik.addedByUid }, isLast = true)
+                    InlineDetailRow("Date of Baith", baithDisplay)
+                    InlineDetailRow("Nafi Asbat", if (salik.isNafiAsbat) "Yes" else "No")
+                    InlineDetailRow("Sahib-e-Mehfil", if (salik.isSahibEMehfil) "Yes" else "No")
+                    InlineDetailRow("Added by", salik.addedByName.ifEmpty { salik.addedByUid }, isLast = true)
                 }
             }
 
@@ -364,23 +348,6 @@ fun SalikProfileScreen(
     }
 }
 
-fun calculateConnectionTime(dateStr: String): String {
-    if (dateStr.isBlank()) return "Unknown"
-    return try {
-        val baithDate = LocalDate.parse(dateStr)
-        val now = LocalDate.now()
-        val period = Period.between(baithDate, now)
-        
-        when {
-            period.years > 0 -> "${period.years} years, ${period.months} months"
-            period.months > 0 -> "${period.months} months, ${period.days} days"
-            else -> "${period.days} days"
-        }
-    } catch (e: Exception) {
-        dateStr
-    }
-}
-
 @Composable
 private fun SectionTitle(title: String, icon: ImageVector, tint: Color) {
     Row(
@@ -401,26 +368,5 @@ private fun SectionTitle(title: String, icon: ImageVector, tint: Color) {
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
         )
-    }
-}
-
-@Composable
-private fun DetailRow(label: String, value: String, isLast: Boolean = false) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Dimens.md, vertical = Dimens.sm)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value.ifEmpty { "—" },
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Medium
-        )
-        if (!isLast) {
-            Spacer(modifier = Modifier.height(Dimens.sm))
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-        }
     }
 }

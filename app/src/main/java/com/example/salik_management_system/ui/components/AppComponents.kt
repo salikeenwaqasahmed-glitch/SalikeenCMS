@@ -7,6 +7,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +22,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -256,6 +261,7 @@ enum class StatusTone { Success, Warning, Danger, Neutral, Gold }
 fun AppListRow(
     title: String,
     subtitle: String,
+    subtitleMaxLines: Int = 2,
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
     showDivider: Boolean = true,
@@ -283,7 +289,7 @@ fun AppListRow(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
+                    maxLines = subtitleMaxLines,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -371,6 +377,62 @@ fun ProfileHeaderCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun BrandPrimaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+) {
+    val green = if (isSystemInDarkTheme()) Brand.GreenDark else Brand.Green
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.heightIn(min = 52.dp),
+        shape = RoundedCornerShape(Dimens.cardRadius),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = green,
+            contentColor = Brand.Gold,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 6.dp,
+            disabledElevation = 0.dp,
+        ),
+    ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
+            Spacer(modifier = Modifier.width(Dimens.xs))
+        }
+        Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** Compact branded action for screen top bars (e.g. Add Salik). */
+@Composable
+fun BrandTopBarActionButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val green = if (isSystemInDarkTheme()) Brand.GreenDark else Brand.Green
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 36.dp),
+        shape = RoundedCornerShape(20.dp),
+        contentPadding = PaddingValues(horizontal = Dimens.md, vertical = Dimens.xxs),
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = green,
+            contentColor = Brand.Gold,
+        ),
+    ) {
+        Text(text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
     }
 }
 

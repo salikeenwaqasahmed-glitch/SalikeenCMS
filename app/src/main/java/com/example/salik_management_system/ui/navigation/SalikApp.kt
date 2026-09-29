@@ -11,6 +11,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import com.example.salik_management_system.auth.ui.viewmodel.AuthViewModel
 import com.example.salik_management_system.core.sync.SyncViewModel
+import com.example.salik_management_system.core.utils.AppLog
 import com.example.salik_management_system.ui.theme.SalikTheme
 import com.example.salik_management_system.ui.theme.ThemeViewModel
 import kotlinx.coroutines.launch
@@ -47,13 +48,16 @@ fun SalikApp(
 
     LaunchedEffect(uiState.isBootstrapping, session?.uid) {
         if (uiState.isBootstrapping) return@LaunchedEffect
-        if (session != null) {
+        val active = session
+        if (active != null) {
             val current = navController.currentDestination?.route
+            AppLog.d("Nav", "session active uid=${active.uid} route=$current → dashboard")
             if (current == SalikRoutes.Login || current == null) {
                 goDashboard()
             }
         } else {
             val current = navController.currentDestination?.route
+            AppLog.d("Nav", "no session route=$current → login")
             if (current != null && current != SalikRoutes.Login) {
                 goLogin()
             }
@@ -74,9 +78,11 @@ fun SalikApp(
             isOnline = isOnline,
             isSyncing = syncState.isSyncing,
             onSync = {
+                AppLog.i("Sync", "manual sync from nav")
                 syncViewModel.syncNow { result ->
                     scope.launch {
-                        snackbarHostState.showSnackbar(result.message)
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        snackbarHostState.showSnackbar(if (result.ok) "Sync complete" else "Sync failed. Check connection and retry.")
                     }
                 }
             },

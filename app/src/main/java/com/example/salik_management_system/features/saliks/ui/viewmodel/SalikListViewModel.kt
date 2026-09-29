@@ -1,5 +1,6 @@
 package com.example.salik_management_system.features.saliks.ui.viewmodel
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.salik_management_system.auth.data.AuthRepository
@@ -13,6 +14,7 @@ import com.example.salik_management_system.features.saliks.domain.model.Area
 import com.example.salik_management_system.features.saliks.domain.model.Bazam
 import com.example.salik_management_system.features.saliks.domain.model.Salik
 import com.example.salik_management_system.features.saliks.domain.model.SalikDuplicateGroup
+import com.example.salik_management_system.features.saliks.domain.model.isDefaultBazam
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -30,6 +33,7 @@ import kotlin.math.ceil
 
 data class SalikListFilters(
     val query: String = "",
+    val gender: String? = null,
     val bazamId: String? = null,
     val areaId: String? = null,
     val status: ApprovalStatus? = null,
@@ -60,11 +64,25 @@ data class SalikListUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class SalikListViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     private val authRepository: AuthRepository,
     private val salikRepository: SalikRepository,
     private val areaRepository: AreaRepository,
 ) : ViewModel() {
-    private val _filters = MutableStateFlow(SalikListFilters())
+    private val _filters = MutableStateFlow(
+        SalikListFilters(
+            areaId = savedStateHandle["areaId"],
+            bazamId = savedStateHandle["bazamId"],
+            gender = when (savedStateHandle.get<String>("type")) {
+                "male" -> "Male"
+                "female" -> "Female"
+                else -> null
+            },
+            nafiOnly = savedStateHandle.get<String>("type") == "nafi",
+            sahibOnly = savedStateHandle.get<String>("type") == "sahib",
+            status = if (savedStateHandle.get<String>("type") != null) ApprovalStatus.Approved else null,
+        ),
+    )
     val filters: StateFlow<SalikListFilters> = _filters.asStateFlow()
 
     private val _page = MutableStateFlow(1)
@@ -117,12 +135,12 @@ class SalikListViewModel @Inject constructor(
                     totalCount = total,
                     totalPages = totalPages,
                     canCreate = session != null && AccessControl.canCreate(session.role),
-                    isLoading = saliks.isEmpty() && session != null,
+                    isLoading = false,
                     message = message,
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SalikListUiState())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, SalikListUiState())
 
     private data class DataBundle(
         val filters: SalikListFilters,
@@ -134,11 +152,11 @@ class SalikListViewModel @Inject constructor(
 
     val pendingSaliks: StateFlow<List<Salik>> = authRepository.session
         .flatMapLatest { salikRepository.watchPending(it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val duplicateGroups: StateFlow<List<SalikDuplicateGroup>> = authRepository.session
         .flatMapLatest { salikRepository.watchDuplicateGroups(it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun setQuery(query: String) {
         _filters.update { it.copy(query = query) }
@@ -149,6 +167,7 @@ class SalikListViewModel @Inject constructor(
         _filters.update {
             it.copy(
                 status = null,
+                gender = null,
                 nafiOnly = false,
                 sahibOnly = false
             )
@@ -261,13 +280,17 @@ class SalikListViewModel @Inject constructor(
     }
 
     fun exportSelected(onReady: (String) -> Unit) {
-        val selected = _selectedIds.value
+        val selected = _selectedIds.value.toSet()
         if (selected.isEmpty()) return
-        val allSaliks = uiState.value.saliks
-        val toExport = allSaliks.filter { it.salikId in selected }
-        val areaLookup = uiState.value.areas.associateBy { it.areaId }
-        val csv = com.example.salik_management_system.core.export.SalikCsvExport.build(toExport, areaLookup)
-        onReady(csv)
+        viewModelScope.launch {
+            try {
+                val session = authRepository.session.value ?: return@launch
+                val records = salikRepository.watchDirectory(session).first().filter { it.salikId in selected }
+                val areas = areaRepository.watchAreas().first().associateBy { it.areaId }
+                onReady(com.example.salik_management_system.core.export.SalikCsvExport.build(records, areas))
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (e: Exception) { _message.value = "Export failed" }
+        }
     }
 
     fun getSelectedPhones(): List<String> {
@@ -281,7 +304,7 @@ class SalikListViewModel @Inject constructor(
     fun areasForBazam(bazamId: String): StateFlow<List<Area>> =
         areaRepository.watchAreas()
             .map { list -> list.filter { it.bazamId == bazamId } }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private fun resetPage() {
         _page.value = 1
@@ -307,10 +330,14 @@ class SalikListViewModel @Inject constructor(
                     s.mobileNumber.contains(q) ||
                     s.whatsappNumber.contains(q)
             
-            val matchesBazam = filters.bazamId == null || s.bazamId == filters.bazamId ||
-                    (s.bazamId.isEmpty() && filters.bazamId == "i-10")
+            val targetBazam = filters.bazamId
+            val matchesBazam = targetBazam == null ||
+                    s.bazamId.equals(targetBazam, ignoreCase = true) ||
+                    (isDefaultBazam(targetBazam) && isDefaultBazam(s.bazamId))
             
-            val matchesArea = filters.areaId == null || s.areaId == filters.areaId
+            val targetArea = filters.areaId
+            val matchesArea = targetArea == null ||
+                    s.areaId.equals(targetArea, ignoreCase = true)
             
             val matchesStatus = filters.status == null || s.approvalStatus == filters.status
             
@@ -318,7 +345,8 @@ class SalikListViewModel @Inject constructor(
             
             val matchesSahib = !filters.sahibOnly || s.isSahibEMehfil
 
-            matchesQuery && matchesBazam && matchesArea && matchesStatus && matchesNafi && matchesSahib
+            val matchesGender = filters.gender == null || s.genderId.equals(filters.gender, true)
+            matchesGender && matchesQuery && matchesBazam && matchesArea && matchesStatus && matchesNafi && matchesSahib
         }
         
         AppLog.d("SalikListVM", "applyFilters: Input=${saliks.size}, Output=${result.size}, Filters=$filters")

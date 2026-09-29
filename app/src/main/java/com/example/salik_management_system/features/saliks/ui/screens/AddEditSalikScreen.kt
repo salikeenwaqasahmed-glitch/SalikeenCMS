@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,8 +28,6 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DatePicker
@@ -43,6 +42,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -62,7 +62,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.salik_management_system.features.saliks.domain.model.SalikDates
 import com.example.salik_management_system.features.saliks.ui.viewmodel.SalikFormViewModel
+import com.example.salik_management_system.ui.components.BrandPrimaryButton
 import com.example.salik_management_system.ui.components.FilterDropdown
 import com.example.salik_management_system.ui.components.IosGroupedCard
 import com.example.salik_management_system.ui.components.rememberHaptic
@@ -102,23 +104,57 @@ fun AddEditSalikScreen(
         viewModel.clearSaved()
     }
 
+    val saveLabel = when {
+        state.isLoadingRecord -> "Loading..."
+        state.isSaving -> "Saving Registration…"
+        salikId == null -> "Register Salik"
+        else -> "Update Salik Info"
+    }
+    val saveIcon = if (salikId == null) Icons.Default.Add else Icons.Default.CheckCircle
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        if (salikId == null) "Add New Salik" else "Edit Salik Info",
-                        fontWeight = FontWeight.SemiBold
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = brandTopAppBarColors(),
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Dimens.sm),
+            ) {
+                TopAppBar(
+                    modifier = Modifier.padding(horizontal = Dimens.xs),
+                    title = {
+                        Text(
+                            if (salikId == null) "Add New Salik" else "Edit Salik Info",
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = Dimens.xxs),
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    colors = brandTopAppBarColors(),
+                )
+            }
+        },
+        bottomBar = {
+            Surface(
+                shadowElevation = 8.dp,
+                tonalElevation = 2.dp,
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                BrandPrimaryButton(
+                    text = saveLabel,
+                    onClick = viewModel::save,
+                    enabled = isEditable,
+                    icon = saveIcon,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Dimens.screenPadding, vertical = Dimens.md)
+                        .navigationBarsPadding(),
+                )
+            }
         },
     ) { padding ->
         Column(
@@ -126,9 +162,11 @@ fun AddEditSalikScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = Dimens.screenPadding, vertical = Dimens.md),
+                .padding(horizontal = Dimens.screenPadding)
+                .padding(top = Dimens.lg, bottom = Dimens.md),
             verticalArrangement = Arrangement.spacedBy(Dimens.groupSpacing),
         ) {
+            Spacer(modifier = Modifier.height(Dimens.xs))
             state.error?.let {
                 Text(
                     text = it,
@@ -289,10 +327,14 @@ fun AddEditSalikScreen(
                     }
 
                     OutlinedTextField(
-                        value = state.dateOfBaith,
+                        value = if (state.dateOfBaith.isBlank()) {
+                            ""
+                        } else {
+                            SalikDates.formatBaithDate(state.dateOfBaith)
+                        },
                         onValueChange = { },
                         label = { Text("Date of Baith") },
-                        placeholder = { Text("YYYY-MM-DD") },
+                        placeholder = { Text("Select date") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.small,
                         singleLine = true,
@@ -301,8 +343,13 @@ fun AddEditSalikScreen(
                         interactionSource = dateInteractionSource,
                         leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = brandGreen) },
                         trailingIcon = {
-                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = brandGreen)
-                        }
+                            IconButton(
+                                onClick = { if (isEditable) showDatePicker = true },
+                                enabled = isEditable,
+                            ) {
+                                Icon(Icons.Default.CalendarToday, contentDescription = "Pick date", tint = brandGreen)
+                            }
+                        },
                     )
 
                     OutlinedTextField(
@@ -336,28 +383,7 @@ fun AddEditSalikScreen(
                 }
             }
 
-            Button(
-                onClick = viewModel::save,
-                enabled = isEditable,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = MaterialTheme.shapes.medium,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Brand.Green,
-                    contentColor = Brand.Gold
-                )
-            ) {
-                val label = when {
-                    state.isLoadingRecord -> "Loading..."
-                    state.isSaving -> "Saving Registration…"
-                    salikId == null -> "Register Salik"
-                    else -> "Update Salik Info"
-                }
-                Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            }
-            
-            Spacer(modifier = Modifier.height(Dimens.xl))
+            Spacer(modifier = Modifier.height(Dimens.md))
         }
     }
 
@@ -401,10 +427,11 @@ fun AddEditSalikScreen(
 
     if (showDatePicker) {
         val initialDate = remember(state.dateOfBaith) {
-            runCatching {
-                LocalDate.parse(state.dateOfBaith).atStartOfDay(ZoneId.systemDefault())
-                    .toInstant().toEpochMilli()
-            }.getOrNull() ?: System.currentTimeMillis()
+            SalikDates.parseBaithDate(state.dateOfBaith)
+                ?.atStartOfDay(ZoneId.systemDefault())
+                ?.toInstant()
+                ?.toEpochMilli()
+                ?: System.currentTimeMillis()
         }
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialDate)
 

@@ -25,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Chat
@@ -44,8 +43,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -75,8 +72,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.salik_management_system.features.saliks.domain.model.ApprovalStatus
 import com.example.salik_management_system.features.saliks.domain.model.Salik
+import com.example.salik_management_system.features.saliks.domain.model.SalikListFormatting
 import com.example.salik_management_system.features.saliks.ui.viewmodel.SalikListViewModel
 import com.example.salik_management_system.ui.components.AppListRow
+import com.example.salik_management_system.ui.components.BrandTopBarActionButton
 import com.example.salik_management_system.ui.components.EmptyState
 import com.example.salik_management_system.ui.components.IosGroupedCard
 import com.example.salik_management_system.ui.components.rememberHaptic
@@ -91,6 +90,7 @@ import com.example.salik_management_system.ui.theme.brandTopAppBarColors
 @Composable
 fun SalikDirectoryScreen(
     onOpenProfile: (String) -> Unit = {},
+    onEditSalik: (String) -> Unit = {},
     onAdd: () -> Unit = {},
     onOpenPending: () -> Unit = {},
     onOpenDuplicates: () -> Unit = {},
@@ -126,104 +126,104 @@ fun SalikDirectoryScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    if (state.isSelectionMode) {
-                        Text("${state.selectedIds.size} selected")
-                    } else {
-                        Text("Saliks", fontWeight = FontWeight.SemiBold)
-                    }
-                },
-                navigationIcon = {
-                    if (state.isSelectionMode) {
-                        IconButton(onClick = viewModel::toggleSelectionMode) {
-                            Icon(Icons.Filled.Close, contentDescription = "Cancel")
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Dimens.sm),
+            ) {
+                TopAppBar(
+                    modifier = Modifier.padding(horizontal = Dimens.xs),
+                    title = {
+                        if (state.isSelectionMode) {
+                            Text("${state.selectedIds.size} selected")
+                        } else {
+                            Text(
+                                "Saliks",
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(start = Dimens.xxs),
+                            )
                         }
-                    }
-                },
-                actions = {
-                    if (state.isSelectionMode) {
-                        IconButton(
-                            onClick = { showMessageDialog = true },
-                            enabled = state.selectedIds.isNotEmpty()
-                        ) {
-                            Icon(Icons.Filled.Chat, contentDescription = "Message")
+                    },
+                    navigationIcon = {
+                        if (state.isSelectionMode) {
+                            IconButton(onClick = viewModel::toggleSelectionMode) {
+                                Icon(Icons.Filled.Close, contentDescription = "Cancel")
+                            }
                         }
-                        IconButton(
-                            onClick = {
-                                viewModel.exportSelected { csv ->
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/csv"
-                                        putExtra(Intent.EXTRA_SUBJECT, "Saliks Export")
-                                        putExtra(Intent.EXTRA_TEXT, csv)
-                                    }
-                                    context.startActivity(
-                                        Intent.createChooser(
-                                            intent, "Share Export"
+                    },
+                    actions = {
+                        if (state.isSelectionMode) {
+                            IconButton(
+                                onClick = { showMessageDialog = true },
+                                enabled = state.selectedIds.isNotEmpty(),
+                            ) {
+                                Icon(Icons.Filled.Chat, contentDescription = "Message")
+                            }
+                            IconButton(
+                                onClick = {
+                                    viewModel.exportSelected { csv ->
+                                        context.startActivity(
+                                            com.example.salik_management_system.core.export.CsvShare.intent(context, csv),
                                         )
-                                    )
-                                }
-                            }, enabled = state.selectedIds.isNotEmpty()
-                        ) {
-                            Icon(Icons.Filled.Share, contentDescription = "Export")
-                        }
-                    } else {
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = "More")
-                        }
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Export / Select") },
-                                onClick = {
-                                    menuExpanded = false
-                                    viewModel.toggleSelectionMode()
+                                    }
                                 },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Pending Filter") },
-                                onClick = {
-                                    menuExpanded = false
-                                    viewModel.setStatus(ApprovalStatus.Pending)
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Rejected Filter") },
-                                onClick = {
-                                    menuExpanded = false
-                                    viewModel.setStatus(ApprovalStatus.Rejected)
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Go to Pending") },
-                                onClick = { menuExpanded = false; onOpenPending() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Duplicates") },
-                                onClick = { menuExpanded = false; onOpenDuplicates() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Message queue") },
-                                onClick = { menuExpanded = false; onOpenMessageQueue() },
-                            )
+                                enabled = state.selectedIds.isNotEmpty(),
+                            ) {
+                                Icon(Icons.Filled.Share, contentDescription = "Export")
+                            }
+                        } else {
+                            if (state.canCreate) {
+                                BrandTopBarActionButton(
+                                    text = "Add Salik",
+                                    onClick = onAdd,
+                                    modifier = Modifier.padding(end = Dimens.xxs),
+                                )
+                            }
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Export / Select") },
+                                    onClick = {
+                                        menuExpanded = false
+                                        viewModel.toggleSelectionMode()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Pending Filter") },
+                                    onClick = {
+                                        menuExpanded = false
+                                        viewModel.setStatus(ApprovalStatus.Pending)
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Rejected Filter") },
+                                    onClick = {
+                                        menuExpanded = false
+                                        viewModel.setStatus(ApprovalStatus.Rejected)
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Go to Pending") },
+                                    onClick = { menuExpanded = false; onOpenPending() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Duplicates") },
+                                    onClick = { menuExpanded = false; onOpenDuplicates() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Message queue") },
+                                    onClick = { menuExpanded = false; onOpenMessageQueue() },
+                                )
+                            }
                         }
-                    }
-                },
-                colors = brandTopAppBarColors(),
-            )
-        },
-        floatingActionButton = {
-            if (state.canCreate && !state.isSelectionMode) {
-                FloatingActionButton(
-                    onClick = onAdd,
-                    containerColor = Brand.Green,
-                    contentColor = Color.White,
-                    elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add")
-                }
+                    },
+                    colors = brandTopAppBarColors(),
+                )
             }
         },
     ) { padding ->
@@ -234,7 +234,7 @@ fun SalikDirectoryScreen(
                 .padding(horizontal = Dimens.screenPadding),
         ) {
             // Top: search + chip filters
-            Column(modifier = Modifier.padding(vertical = Dimens.md)) {
+            Column(modifier = Modifier.padding(top = Dimens.lg, bottom = Dimens.md)) {
                 OutlinedTextField(
                     value = state.filters.query,
                     onValueChange = viewModel::setQuery,
@@ -259,7 +259,7 @@ fun SalikDirectoryScreen(
                 ) {
                     StatusFilterChip(
                         label = "All",
-                        selected = state.filters.status == null && !state.filters.nafiOnly && !state.filters.sahibOnly,
+                        selected = state.filters.gender == null && state.filters.status == null && !state.filters.nafiOnly && !state.filters.sahibOnly,
                         onClick = { viewModel.clearTypeFilters() },
                     )
                     StatusFilterChip(
@@ -272,6 +272,13 @@ fun SalikDirectoryScreen(
                         selected = state.filters.sahibOnly,
                         onClick = { viewModel.setSahibOnly(!state.filters.sahibOnly) },
                     )
+                    if (state.filters.gender != null) {
+                        StatusFilterChip(
+                            label = state.filters.gender!!,
+                            selected = true,
+                            onClick = { viewModel.clearTypeFilters() },
+                        )
+                    }
                     if (state.filters.status != null) {
                         StatusFilterChip(
                             label = state.filters.status!!.name,
@@ -312,6 +319,8 @@ fun SalikDirectoryScreen(
                 modifier = Modifier.padding(start = 4.dp, bottom = Dimens.xs),
             )
 
+            state.message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
             // Middle: page data
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxSize(),
@@ -336,11 +345,12 @@ fun SalikDirectoryScreen(
                             isSelectionMode = state.isSelectionMode,
                             onSelect = { viewModel.toggleSelection(salik.salikId) },
                             onClick = { onOpenProfile(salik.salikId) },
-                            onEdit = { onOpenProfile(salik.salikId) },
+                            onEdit = { onEditSalik(salik.salikId) },
                             onCall = {
                                 com.example.salik_management_system.core.utils.ContactLauncher.callIntent(salik.mobileNumber)
                                     ?.let { context.startActivity(it) }
                             },
+                            areaName = state.areas.firstOrNull { it.areaId == salik.areaId }?.areaName.orEmpty(),
                             bazams = state.bazams
                         )
                     }
@@ -435,6 +445,7 @@ private fun SalikSwipeableRow(
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onCall: () -> Unit,
+    areaName: String,
     bazams: List<com.example.salik_management_system.features.saliks.domain.model.Bazam>
 ) {
     val haptic = rememberHaptic()
@@ -482,18 +493,12 @@ private fun SalikSwipeableRow(
             IosGroupedCard {
                 AppListRow(
                     title = salik.name,
-                    subtitle = buildString {
-                        append(salik.fatherName)
-                        if (salik.mobileNumber.isNotBlank()) {
-                            append(" · ")
-                            append(salik.mobileNumber)
-                        }
-                        val bazam = bazams.firstOrNull { it.bazamId == salik.bazamId }
-                        if (bazam != null) {
-                            append(" · ")
-                            append(bazam.bazamName)
-                        }
-                    },
+                    subtitle = SalikListFormatting.directorySubtitle(
+                        salik = salik,
+                        areaName = areaName,
+                        bazamName = bazams.firstOrNull { it.bazamId == salik.bazamId }?.bazamName,
+                    ),
+                    subtitleMaxLines = 2,
                     showDivider = false,
                     onClick = {
                         if (isSelectionMode) {

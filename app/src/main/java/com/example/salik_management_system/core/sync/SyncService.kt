@@ -5,6 +5,7 @@ import com.example.salik_management_system.auth.data.AuthRepository
 import com.example.salik_management_system.auth.domain.UserRole
 import com.example.salik_management_system.auth.domain.UserSession
 import com.example.salik_management_system.core.auth.LocalAuthStore
+import com.example.salik_management_system.core.config.AppConfig
 import com.example.salik_management_system.core.crypto.FieldCryptoKeyStore
 import com.example.salik_management_system.core.data.SeedService
 import com.example.salik_management_system.core.data.kAreas
@@ -35,9 +36,24 @@ import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class PullStats(
+    val bazamsFromServer: Int = 0,
+    val bazamsUpserted: Int = 0,
+    val areasFromServer: Int = 0,
+    val areasUpserted: Int = 0,
+    val saliksFromServer: Int = 0,
+    val saliksUpserted: Int = 0,
+    val saliksSkipped: Int = 0,
+) {
+    fun summaryMessage(): String =
+        "Pulled ${saliksUpserted} saliks, ${areasUpserted} areas, ${bazamsUpserted} bazams " +
+            "(Firestore docs: ${saliksFromServer} saliks, ${areasFromServer} areas, ${bazamsFromServer} bazams)"
+}
+
 data class SyncResult(
     val ok: Boolean,
     val message: String,
+    val pullStats: PullStats? = null,
 )
 
 @Singleton
@@ -60,6 +76,10 @@ class SyncService @Inject constructor(
     var lastSyncError: String? = null
         private set
 
+    @Volatile
+    var lastPullStats: PullStats? = null
+        private set
+
     val pendingCount: Flow<Int> = syncQueueDao.watchPendingCount()
 
     suspend fun syncNow(sessionOverride: UserSession? = null): SyncResult = mutex.withLock {
@@ -67,8 +87,9 @@ class SyncService @Inject constructor(
             AppLog.w(TAG, "Sync aborted: Device offline")
             return SyncResult(false, "Offline — connect to sync")
         }
-        AppLog.i(TAG, "Starting sync...")
+        AppLog.i(TAG, "Starting sync (project=${AppConfig.firebaseProjectId}, env=${AppConfig.envLabel})...")
         lastSyncError = null
+        lastPullStats = null
         return try {
             purgeLocalStaleQueue()
             authRepo.promoteOfflineSessionIfOnline()
@@ -88,11 +109,19 @@ class SyncService @Inject constructor(
             val session = ensureUserProfile(sessionHint)
                 ?: return SyncResult(false, "User profile missing")
 
+            AppLog.i(
+                TAG,
+                "Sync session: email=${session.email}, uid=${session.uid}, " +
+                    "role=${session.role.toFirestore()}, gender=${session.gender}, " +
+                    "firebaseUid=${auth.currentUser?.uid}",
+            )
+
             keyStore.ensureKey(session)
             adoptRemoteApprovals()
             pushQueue(session)
             finalizeSyncQueue()
-            pullFromFirestore(session)
+            val pullStats = pullFromFirestore(session)
+            lastPullStats = pullStats
             finalizeSyncQueue()
 
             if (session.role == UserRole.Admin) {
@@ -100,16 +129,20 @@ class SyncService @Inject constructor(
                     .onFailure { AppLog.e(TAG, "Seed failed", it) }
             }
 
+            val roomSaliks = salikDao.getAll(genderFilter = AccessControl.genderFilter(session)).size
+            AppLog.i(TAG, "Pull done. ${pullStats.summaryMessage()}. Room saliks (scoped)=${roomSaliks}")
+
             val remaining = syncQueueDao.pendingCount()
+            val pullLine = pullStats.summaryMessage()
             if (remaining > 0) {
                 val pendingItems = syncQueueDao.pendingItems()
                 val details = pendingItems.joinToString { "${it.collection}/${it.operation}/${it.docId}" }
                 lastSyncError = "syncQueue: $remaining item(s) still pending [$details]"
                 AppLog.w(TAG, "Sync finished with pending items: $remaining. Details: $details")
-                SyncResult(false, lastSyncError!!)
+                SyncResult(false, "$pullLine. Pending queue: $remaining.", pullStats)
             } else {
                 AppLog.i(TAG, "Sync completed successfully")
-                SyncResult(true, "Sync complete")
+                SyncResult(true, "Sync complete — $pullLine", pullStats)
             }
         } catch (e: Exception) {
             lastSyncError = e.message ?: e.toString()
@@ -183,7 +216,7 @@ class SyncService @Inject constructor(
         val local = salikDao.getById(item.docId) ?: return false
         val salik = local.toDomain()
         val gender = AccessControl.genderFilter(session)
-        if (gender != null && salik.genderId != gender) return false
+        if (gender != null && !AccessControl.salikGenderMatches(salik.genderId, gender)) return false
         if (AccessControl.isEditor(session.role)) {
             return salik.isPending && item.operation == "create"
         }
@@ -246,7 +279,7 @@ class SyncService @Inject constructor(
         val clean = payload.filterValues { it != null }
         val ref = firestore.collection("saliks").document(docId)
         AppLog.d(TAG, "Pushing salik ($operation): $docId")
-        
+
         try {
             when (operation) {
                 "create" -> {
@@ -259,7 +292,6 @@ class SyncService @Inject constructor(
                             return
                         }
                         AppLog.w(TAG, "Critical: Attempted to CREATE salik $docId but it already exists on server.")
-                        // If it exists and is approved, just sync it locally
                         cacheSalik(server)
                         return
                     }
@@ -327,20 +359,32 @@ class SyncService @Inject constructor(
         }
     }
 
-    private suspend fun pullFromFirestore(session: UserSession) {
-        pullBazams()
-        pullAreas()
-        pullSaliks(session)
+    private suspend fun pullFromFirestore(session: UserSession): PullStats {
+        val bazams = pullBazams()
+        val areas = pullAreas()
+        val saliks = pullSaliks(session)
+        return PullStats(
+            bazamsFromServer = bazams.first,
+            bazamsUpserted = bazams.second,
+            areasFromServer = areas.first,
+            areasUpserted = areas.second,
+            saliksFromServer = saliks.first,
+            saliksUpserted = saliks.second,
+            saliksSkipped = saliks.third,
+        )
     }
 
-    private suspend fun pullBazams() {
+    private suspend fun pullBazams(): Pair<Int, Int> {
         val snapshot = firestore.collection("bazams").get().await()
+        var upserted = 0
         val serverIds = mutableSetOf<String>()
         if (snapshot.isEmpty) {
             for (bazam in kBazams) {
                 bazamDao.upsert(bazam.toEntity())
+                upserted++
             }
-            return
+            AppLog.d(TAG, "pullBazams: empty Firestore → seeded $upserted local defaults")
+            return 0 to upserted
         }
         for (doc in snapshot.documents) {
             val data = doc.data.orEmpty().toAnyMap()
@@ -349,20 +393,28 @@ class SyncService @Inject constructor(
             runCatching {
                 val bazam = Bazam.fromMap(data, id = doc.id)
                 bazamDao.upsert(bazam.toEntity())
+                upserted++
             }.onFailure { Log.d(TAG, "Skip bazam ${doc.id}: $it") }
         }
+        AppLog.d(TAG, "pullBazams: server=${snapshot.size()}, upserted=$upserted")
         for (row in bazamDao.getAll()) {
             if (row.syncStatus != SyncStatus.synced) continue
             if (row.bazamId !in serverIds) bazamDao.deleteById(row.bazamId)
         }
+        return snapshot.size() to upserted
     }
 
-    private suspend fun pullAreas() {
+    private suspend fun pullAreas(): Pair<Int, Int> {
         val snapshot = firestore.collection("areas").get().await()
+        var upserted = 0
         val serverIds = mutableSetOf<String>()
         if (snapshot.isEmpty) {
-            for (area in kAreas) areaDao.upsert(area.toEntity())
-            return
+            for (area in kAreas) {
+                areaDao.upsert(area.toEntity())
+                upserted++
+            }
+            AppLog.d(TAG, "pullAreas: empty Firestore → seeded $upserted local defaults")
+            return 0 to upserted
         }
         for (doc in snapshot.documents) {
             val data = doc.data.orEmpty().toAnyMap()
@@ -370,47 +422,104 @@ class SyncService @Inject constructor(
             serverIds += doc.id
             runCatching {
                 areaDao.upsert(Area.fromMap(data, id = doc.id).toEntity())
+                upserted++
             }.onFailure { Log.d(TAG, "Skip area ${doc.id}: $it") }
         }
+        AppLog.d(TAG, "pullAreas: server=${snapshot.size()}, upserted=$upserted")
         for (row in areaDao.getAll()) {
             if (row.syncStatus != SyncStatus.synced) continue
             if (row.areaId !in serverIds) areaDao.deleteById(row.areaId)
         }
+        return snapshot.size() to upserted
     }
 
-    private suspend fun pullSaliks(session: UserSession) {
+    private suspend fun pullSaliks(session: UserSession): Triple<Int, Int, Int> {
         val gender = AccessControl.genderFilter(session)
         val snapshot = if (gender != null) {
-            firestore.collection("saliks").whereEqualTo("genderId", gender).get().await()
+            firestore.collection("saliks")
+                .whereIn("genderId", AccessControl.salikGenderFirestoreValues(gender))
+                .get()
+                .await()
         } else {
             firestore.collection("saliks").get().await()
         }
         val serverIds = mutableSetOf<String>()
+        var upserted = 0
+        var skipped = 0
         for (doc in snapshot.documents) {
             serverIds += doc.id
-            val server = salikFromFirestore(doc.data.orEmpty().toAnyMap(), doc.id)
-            mergeSalikFromServer(server)
+            val merged = runCatching {
+                val server = salikFromFirestore(doc.data.orEmpty().toAnyMap(), doc.id)
+                mergeSalikFromServer(server, session)
+            }
+            merged.onSuccess { if (it) upserted++ else skipped++ }
+                .onFailure { e ->
+                    skipped++
+                    AppLog.w(TAG, "Skip salik ${doc.id}: ${e.message}")
+                }
         }
-        for (row in salikDao.getAll(genderFilter = gender)) {
-            if (row.syncStatus != SyncStatus.synced) continue
-            if (row.salikId !in serverIds) salikDao.deleteById(row.salikId)
+        AppLog.d(TAG, "pullSaliks: server=${snapshot.size()}, upserted=$upserted, skipped=$skipped, genderFilter=$gender")
+
+        val skipDeleteSweep = serverIds.isEmpty() &&
+            AccessControl.canViewAllGenders(session.role) &&
+            salikDao.getAll(genderFilter = gender).any { it.syncStatus == SyncStatus.synced }
+        if (skipDeleteSweep) {
+            AppLog.w(
+                TAG,
+                "Salik pull returned 0 readable docs but local synced rows exist — skipping delete sweep " +
+                    "(check Firebase project ${AppConfig.firebaseProjectId} and users/{uid} role)",
+            )
+        } else {
+            for (row in salikDao.getAll(genderFilter = gender)) {
+                if (row.syncStatus != SyncStatus.synced) continue
+                if (row.salikId !in serverIds) salikDao.deleteById(row.salikId)
+            }
         }
+        return Triple(snapshot.size(), upserted, skipped)
     }
 
-    private suspend fun mergeSalikFromServer(server: Salik) {
-        val local = salikDao.getById(server.salikId)
+    /**
+     * Apply server salik to Room. Returns true if server row was cached.
+     *
+     * Admin pull: server wins over local pending updates; pending local creates kept unless
+     * server already has an approved/rejected doc with the same id. Pending local deletes are kept.
+     */
+    private suspend fun mergeSalikFromServer(server: Salik, session: UserSession): Boolean {
+        val serverNorm = server.copy(genderId = UserSession.normalizeGender(server.genderId))
+        val local = salikDao.getById(serverNorm.salikId)
         if (local != null && local.syncStatus != SyncStatus.synced) {
             val localSalik = local.toDomain()
-            if (!localSalik.isPending && server.isPending) return
-            if (localSalik.isPending && !server.isPending) cacheSalik(server)
-            return
+            if (AccessControl.canViewAllGenders(session.role)) {
+                when (local.syncStatus) {
+                    SyncStatus.pendingDelete -> return false
+                    SyncStatus.pendingCreate -> {
+                        if (!serverNorm.isPending) {
+                            cacheSalik(serverNorm)
+                            return true
+                        }
+                        return false
+                    }
+                    else -> {
+                        cacheSalik(serverNorm)
+                        return true
+                    }
+                }
+            }
+            if (!localSalik.isPending && serverNorm.isPending) return false
+            if (localSalik.isPending && !serverNorm.isPending) {
+                cacheSalik(serverNorm)
+                return true
+            }
+            return false
         }
-        cacheSalik(server)
+        cacheSalik(serverNorm)
+        return true
     }
 
     private suspend fun cacheSalik(salik: Salik) {
-        salikDao.upsert(salik.toEntity(SyncStatus.synced))
-        syncQueueDao.deleteForDoc("saliks", salik.salikId)
+        val normalized = salik.copy(genderId = UserSession.normalizeGender(salik.genderId))
+        salikDao.upsert(normalized.toEntity(SyncStatus.synced))
+        syncQueueDao.deleteForDoc("saliks", normalized.salikId)
     }
 
     private suspend fun adoptRemoteApprovals() {
@@ -489,7 +598,7 @@ class SyncService @Inject constructor(
     }
 
     companion object {
-        private const val TAG = "SyncService"
+        private const val TAG = "Sync"
     }
 }
 

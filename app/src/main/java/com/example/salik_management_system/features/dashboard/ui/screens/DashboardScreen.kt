@@ -14,19 +14,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.PendingActions
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.salik_management_system.core.utils.AccessControl
 import com.example.salik_management_system.features.dashboard.ui.viewmodel.DashboardViewModel
 import com.example.salik_management_system.ui.components.IosCardSection
+import com.example.salik_management_system.ui.components.BrandTopBarActionButton
 import com.example.salik_management_system.ui.components.IosGroupedCard
 import com.example.salik_management_system.ui.components.IosSettingsRow
 import com.example.salik_management_system.ui.components.SectionHeader
@@ -52,7 +51,7 @@ fun DashboardScreen(
     onAddSalik: () -> Unit = {},
     onOpenBazam: (String) -> Unit = {},
     onOpenPending: () -> Unit = {},
-    onOpenSaliks: () -> Unit = {},
+    onOpenSaliks: (String) -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -62,23 +61,31 @@ fun DashboardScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text("Dashboard", fontWeight = FontWeight.SemiBold)
-                },
-                colors = brandTopAppBarColors(),
-            )
-        },
-        floatingActionButton = {
-            if (state.canCreate) {
-                FloatingActionButton(
-                    onClick = onAddSalik,
-                    containerColor = Brand.Green,
-                    contentColor = Brand.Gold,
-                    elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add salik")
-                }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Dimens.sm),
+            ) {
+                TopAppBar(
+                    modifier = Modifier.padding(horizontal = Dimens.xs),
+                    title = {
+                        Text(
+                            "Dashboard",
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = Dimens.xxs),
+                        )
+                    },
+                    actions = {
+                        if (state.canCreate) {
+                            BrandTopBarActionButton(
+                                text = "Add Salik",
+                                onClick = onAddSalik,
+                                modifier = Modifier.padding(end = Dimens.xs),
+                            )
+                        }
+                    },
+                    colors = brandTopAppBarColors(),
+                )
             }
         },
     ) { padding ->
@@ -88,7 +95,7 @@ fun DashboardScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = Dimens.screenPadding)
-                .padding(bottom = Dimens.xl),
+                .padding(top = Dimens.lg, bottom = Dimens.xl),
             verticalArrangement = Arrangement.spacedBy(Dimens.groupSpacing),
         ) {
             if (session != null) {
@@ -121,7 +128,7 @@ fun DashboardScreen(
                         count = state.stats.total,
                         icon = Icons.Filled.People,
                         modifier = Modifier.weight(1f),
-                        onClick = onOpenSaliks,
+                        onClick = { onOpenSaliks("all") },
                     )
                     if (showGenderSplit) {
                         StatTile(
@@ -129,12 +136,14 @@ fun DashboardScreen(
                             count = state.stats.maleCount,
                             icon = Icons.Filled.People,
                             modifier = Modifier.weight(1f),
+                            onClick = { onOpenSaliks("male") },
                         )
                         StatTile(
                             label = "Female",
                             count = state.stats.femaleCount,
                             icon = Icons.Filled.People,
                             modifier = Modifier.weight(1f),
+                            onClick = { onOpenSaliks("female") },
                         )
                     } else {
                         StatTile(
@@ -142,6 +151,7 @@ fun DashboardScreen(
                             count = state.stats.nafiAsbatCount,
                             icon = Icons.Filled.VolunteerActivism,
                             modifier = Modifier.weight(1f),
+                            onClick = { onOpenSaliks("nafi") },
                         )
                     }
                 }
@@ -155,6 +165,7 @@ fun DashboardScreen(
                             count = state.stats.nafiAsbatCount,
                             icon = Icons.Filled.VolunteerActivism,
                             modifier = Modifier.weight(1f),
+                            onClick = { onOpenSaliks("nafi") },
                         )
                     }
                     StatTile(
@@ -162,6 +173,7 @@ fun DashboardScreen(
                         count = state.stats.sahibMehfilCount,
                         icon = Icons.Filled.Star,
                         modifier = Modifier.weight(1f),
+                            onClick = { onOpenSaliks("sahib") },
                     )
                     if (!showGenderSplit) {
                         Spacer(modifier = Modifier.weight(1f))

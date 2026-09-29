@@ -19,6 +19,11 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,7 +73,21 @@ fun SalikNavGraph(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                    Surface(
+                        modifier = Modifier.widthIn(max = 320.dp).wrapContentWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.inverseSurface,
+                        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                        shadowElevation = 4.dp,
+                    ) {
+                        Text(data.visuals.message, Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
+                    }
+                }
+            }
+        },
         bottomBar = {
             if (showBottomBar) {
                 Column {
@@ -82,7 +101,7 @@ fun SalikNavGraph(
                     SalikBottomBar(
                         currentRoute = currentRoute,
                         onNavigate = { route ->
-                            navController.navigate(route) {
+                            navController.navigate(if (route == SalikRoutes.Saliks) SalikRoutes.saliks() else route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
                                 }
@@ -121,8 +140,8 @@ fun SalikNavGraph(
                         onAddSalik = { navController.navigate(SalikRoutes.SalikAdd) },
                         onOpenBazam = { id -> navController.navigate(SalikRoutes.bazams(id)) },
                         onOpenPending = { navController.navigate(SalikRoutes.SalikPending) },
-                        onOpenSaliks = {
-                            navController.navigate(SalikRoutes.Saliks) {
+                        onOpenSaliks = { type ->
+                            navController.navigate(SalikRoutes.saliks(type = type)) {
                                 launchSingleTop = true
                             }
                         },
@@ -146,6 +165,11 @@ fun SalikNavGraph(
                 composable(
                     route = SalikRoutes.Saliks,
                     arguments = listOf(
+                        navArgument("type") {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
                         navArgument("areaId") {
                             type = NavType.StringType
                             nullable = true
@@ -158,11 +182,8 @@ fun SalikNavGraph(
                         }
                     ),
                 ) { entry ->
-                    val areaId = entry.arguments?.getString("areaId")
-                    val bazamId = entry.arguments?.getString("bazamId")
                     SalikDirectoryScreen(
-//                        initialAreaId = areaId,
-//                        initialBazamId = bazamId,
+                        onEditSalik = { id -> navController.navigate(SalikRoutes.salikEdit(id)) },
                         onOpenProfile = { id ->
                             navController.navigate(SalikRoutes.salikProfile(id))
                         },
@@ -188,11 +209,17 @@ fun SalikNavGraph(
                         onDeleted = { navController.popBackStack() },
                     )
                 }
-                composable(SalikRoutes.SalikAdd) {
+                composable(
+                    SalikRoutes.SalikAdd + "?contactName={contactName}&contactPhone={contactPhone}",
+                    arguments = listOf(
+                        navArgument("contactName") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("contactPhone") { type = NavType.StringType; defaultValue = "" },
+                    ),
+                ) {
                     AddEditSalikScreen(
                         onBack = { navController.popBackStack() },
                         onSaved = { _ ->
-                            navController.navigate(SalikRoutes.Saliks) {
+                            navController.navigate(SalikRoutes.saliks()) {
                                 popUpTo(SalikRoutes.Dashboard) { inclusive = false }
                                 launchSingleTop = true
                             }
@@ -208,7 +235,7 @@ fun SalikNavGraph(
                         salikId = id,
                         onBack = { navController.popBackStack() },
                         onSaved = { _ ->
-                            navController.navigate(SalikRoutes.Saliks) {
+                            navController.navigate(SalikRoutes.saliks()) {
                                 popUpTo(SalikRoutes.Dashboard) { inclusive = false }
                                 launchSingleTop = true
                             }
@@ -230,7 +257,13 @@ fun SalikNavGraph(
                     SalikMessageQueueScreen(onBack = { navController.popBackStack() })
                 }
                 composable(SalikRoutes.Settings) {
-                    SettingsScreen(onLoggedOut = onLoggedOut)
+                    SettingsScreen(
+                        onLoggedOut = onLoggedOut,
+                        onImportContact = { name, phone ->
+                            navController.navigate(SalikRoutes.SalikAdd + "?contactName=" +
+                                android.net.Uri.encode(name) + "&contactPhone=" + android.net.Uri.encode(phone))
+                        },
+                    )
                 }
             }
         }
@@ -257,7 +290,7 @@ private fun SalikBottomBar(
 
     val itemColors = brandNavItemColors()
     NavigationBar(
-        containerColor = Brand.Green,
+        containerColor = MaterialTheme.colorScheme.surface,
         contentColor = Brand.Gold,
         tonalElevation = 0.dp,
     ) {

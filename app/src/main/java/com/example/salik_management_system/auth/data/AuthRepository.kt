@@ -295,6 +295,7 @@ class AuthRepository @Inject constructor(
 
     suspend fun signIn(email: String, password: String): UserSession {
         isLoginAttemptInProgress = true
+        AppLog.i(TAG, "signIn repository email=$email online=${connectivity.isOnline}")
         try {
             clearSessionForLoginAttempt()
 
@@ -324,6 +325,7 @@ class AuthRepository @Inject constructor(
                 cacheUsersRoster()
             }
 
+            AppLog.i(TAG, "signIn success uid=${session.uid} role=${session.role.toFirestore()}")
             notifySessionChanged()
             return session
         } finally {
@@ -594,7 +596,7 @@ class AuthRepository @Inject constructor(
     }
 
     companion object {
-        private const val TAG = "AuthRepository"
+        private const val TAG = "Auth"
         private const val FETCH_SESSION_TIMEOUT_MS = 12_000L
         private const val ONLINE_SIGN_IN_TIMEOUT_MS = 10_000L
     }

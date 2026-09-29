@@ -74,6 +74,19 @@ class AppDatabaseMigrationTest {
             assertEquals("Ali Khan", cursor.getString(0))
         }
 
+        // Existing FTS installs must regain triggers dropped by Room before migration.
+        migrated.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_saliks_fts_AFTER_UPDATE")
+        migrated.execSQL("DROP TRIGGER IF EXISTS room_fts_content_sync_saliks_fts_BEFORE_UPDATE")
+        MIGRATION_1_2.migrate(migrated)
+        migrated.execSQL("UPDATE local_saliks SET name = 'Updated Person' WHERE salik_id = 's1'")
+        migrated.query("SELECT COUNT(*) FROM saliks_fts WHERE saliks_fts MATCH 'Updated'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(1, it.getInt(0))
+        }
+        migrated.query("SELECT COUNT(*) FROM saliks_fts WHERE saliks_fts MATCH 'Ali'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(0, it.getInt(0))
+        }
         migrated.close()
     }
 }

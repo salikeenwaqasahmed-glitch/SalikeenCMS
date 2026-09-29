@@ -61,7 +61,12 @@ class SalikFormViewModel @Inject constructor(
     private val editId: String? = savedStateHandle["id"]
         ?: savedStateHandle.get<String>("salikId")
 
-    private val _form = MutableStateFlow(SalikFormState(salikId = editId))
+    private val _form = MutableStateFlow(SalikFormState(
+        salikId = editId,
+        name = savedStateHandle.get<String>("contactName").orEmpty(),
+        mobileNumber = savedStateHandle.get<String>("contactPhone").orEmpty(),
+        whatsappNumber = savedStateHandle.get<String>("contactPhone").orEmpty(),
+    ))
     val form: StateFlow<SalikFormState> = _form.asStateFlow()
 
     val session: StateFlow<UserSession?> = authRepository.session
@@ -171,6 +176,7 @@ class SalikFormViewModel @Inject constructor(
     }
 
     fun save() {
+        if (_form.value.isSaving) return
         viewModelScope.launch {
             val session = authRepository.session.value
             val state = _form.value

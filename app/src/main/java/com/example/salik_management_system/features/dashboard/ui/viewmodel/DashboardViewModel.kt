@@ -9,6 +9,7 @@ import com.example.salik_management_system.features.saliks.data.repository.AreaR
 import com.example.salik_management_system.features.saliks.data.repository.SalikRepository
 import com.example.salik_management_system.features.saliks.domain.model.Bazam
 import com.example.salik_management_system.features.saliks.domain.model.Salik
+import com.example.salik_management_system.features.saliks.domain.model.isDefaultBazam
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -83,12 +84,13 @@ class DashboardViewModel @Inject constructor(
             sahibMehfilCount = approved.count { it.isSahibEMehfil },
         )
         val bazamCounts = bazams.map { bazam ->
+            val isDefault = isDefaultBazam(bazam.bazamId, bazam.bazamName)
             BazamCount(
                 bazamId = bazam.bazamId,
                 bazamName = bazam.bazamName,
                 count = approved.count {
-                    it.bazamId == bazam.bazamId ||
-                        (it.bazamId.isEmpty() && bazam.bazamId == "i-10")
+                    it.bazamId.equals(bazam.bazamId, ignoreCase = true) ||
+                        (isDefault && isDefaultBazam(it.bazamId))
                 },
             )
         }

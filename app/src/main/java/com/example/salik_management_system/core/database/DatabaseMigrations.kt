@@ -75,9 +75,8 @@ private fun createSaliksFts(db: SupportSQLiteDatabase) {
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        if (!tableExists(db, "saliks_fts")) {
-            createSaliksFts(db)
-        }
+        // Room drops FTS triggers before migration, even when the table already exists.
+        createSaliksFts(db)
         db.execSQL("INSERT INTO saliks_fts(saliks_fts) VALUES('rebuild')")
     }
 }

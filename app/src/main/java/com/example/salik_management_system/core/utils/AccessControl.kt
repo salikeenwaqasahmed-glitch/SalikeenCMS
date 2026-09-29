@@ -30,7 +30,21 @@ object AccessControl {
     fun genderFilter(session: UserSession?): String? {
         if (session == null) return null
         if (canViewAllGenders(session.role)) return null
-        return session.gender
+        return UserSession.normalizeGender(session.gender)
+    }
+
+    /** Matches Firestore rules genderMatches — Male/male and Female/female. */
+    fun salikGenderMatches(salikGenderId: String, filterGender: String): Boolean {
+        return UserSession.normalizeGender(salikGenderId) ==
+            UserSession.normalizeGender(filterGender)
+    }
+
+    /** Firestore whereIn values for gender-scoped salik pull. */
+    fun salikGenderFirestoreValues(filterGender: String): List<String> {
+        return when (UserSession.normalizeGender(filterGender)) {
+            "Female" -> listOf("Female", "female")
+            else -> listOf("Male", "male")
+        }
     }
 
     fun canSetGender(session: UserSession): Boolean = session.role == UserRole.Admin

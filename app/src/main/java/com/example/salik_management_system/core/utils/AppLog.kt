@@ -4,27 +4,39 @@ import android.util.Log
 import com.example.salik_management_system.BuildConfig
 
 /**
- * Centralized logging utility for Salikeen CMS.
- * Automatically handles tags and debug-only filtering.
+ * App-wide logging — filter Logcat with tag **SalikCMS** only.
+ *
+ * ```
+ * adb logcat -s SalikCMS
+ * ```
+ *
+ * Component name lives in message prefix: `[Sync] …`, `[Auth] …`
  */
 object AppLog {
-    private const val GLOBAL_TAG = "SalikCMS"
+    /** Single Logcat tag for the whole app. */
+    const val TAG = "SalikCMS"
 
-    fun d(tag: String, message: String) {
+    fun trace(area: String, message: String) {
+        d(area, message)
+    }
+
+    fun d(area: String, message: String) {
         if (BuildConfig.DEBUG) {
-            Log.d("$GLOBAL_TAG:$tag", message)
+            Log.d(TAG, format(area, message))
         }
     }
 
-    fun e(tag: String, message: String, throwable: Throwable? = null) {
-        Log.e("$GLOBAL_TAG:$tag", message, throwable)
+    fun i(area: String, message: String) {
+        Log.i(TAG, format(area, message))
     }
 
-    fun i(tag: String, message: String) {
-        Log.i("$GLOBAL_TAG:$tag", message)
+    fun w(area: String, message: String) {
+        Log.w(TAG, format(area, message))
     }
 
-    fun w(tag: String, message: String) {
-        Log.w("$GLOBAL_TAG:$tag", message)
+    fun e(area: String, message: String, throwable: Throwable? = null) {
+        Log.e(TAG, format(area, message), throwable)
     }
+
+    private fun format(area: String, message: String): String = "[$area] $message"
 }

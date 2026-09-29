@@ -137,7 +137,7 @@ class SalikRepository @Inject constructor(
         val existingRow = salikDao.getById(salik.salikId)
         if (existingRow == null) {
             AppLog.e("SalikRepository", "Update failed: Salik ${salik.salikId} not found in DB")
-            return
+            throw IllegalStateException("Record no longer exists")
         }
         val existing = existingRow.toDomain()
 

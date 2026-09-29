@@ -27,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.salik_management_system.features.saliks.domain.model.Area
+import com.example.salik_management_system.features.saliks.domain.model.isDefaultBazam
 import com.example.salik_management_system.features.saliks.ui.viewmodel.SalikListViewModel
 import com.example.salik_management_system.ui.components.EmptyState
 import com.example.salik_management_system.ui.components.SectionHeader
@@ -43,17 +45,41 @@ fun BazamAreasScreen(
     viewModel: SalikListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val bazam = state.bazams.firstOrNull { it.bazamId == bazamId }
-    val counts = state.saliks.groupingBy { it.areaId }.eachCount()
-    
-    // Only show areas that belong to this bazam AND have at least 1 salik
-    val areasWithSaliks = state.areas
-        .filter { it.bazamId == bazamId }
-        .filter { (counts[it.areaId] ?: 0) > 0 }
-        .sortedBy { it.areaName }
+    val isTargetDefault = isDefaultBazam(bazamId)
+    val bazam = state.bazams.firstOrNull {
+        it.bazamId.equals(bazamId, ignoreCase = true) ||
+            (isTargetDefault && isDefaultBazam(it.bazamId, it.bazamName))
+    }
 
-    val allCount = state.saliks.count {
-        it.bazamId == bazamId || (it.bazamId.isEmpty() && bazamId == "i-10")
+    val saliksForBazam = state.saliks.filter { s ->
+        s.bazamId.equals(bazamId, ignoreCase = true) ||
+            (isTargetDefault && isDefaultBazam(s.bazamId))
+    }
+    val allCount = saliksForBazam.size
+
+    val matchedKnownAreas = state.areas.filter { a ->
+        a.bazamId.equals(bazamId, ignoreCase = true) ||
+            (isTargetDefault && isDefaultBazam(a.bazamId))
+    }
+
+    val knownAreaKeys = matchedKnownAreas
+        .flatMap { listOf(it.areaId.trim().lowercase(), it.areaName.trim().lowercase()) }
+        .toSet()
+
+    val extraAreasFromSaliks = saliksForBazam
+        .map { it.areaId.trim() }
+        .filter { it.isNotEmpty() && it.lowercase() !in knownAreaKeys }
+        .distinctBy { it.lowercase() }
+        .map { Area(areaId = it, areaName = it, bazamId = bazamId) }
+
+    val areasForBazam = (matchedKnownAreas + extraAreasFromSaliks).sortedBy { it.areaName.lowercase() }
+
+    val counts = areasForBazam.associate { area ->
+        val count = saliksForBazam.count { s ->
+            s.areaId.equals(area.areaId, ignoreCase = true) ||
+                s.areaId.trim().equals(area.areaName.trim(), ignoreCase = true)
+        }
+        area.areaId to count
     }
 
     Scaffold(
@@ -104,7 +130,7 @@ fun BazamAreasScreen(
                 }
 
                 // Individual Area cards
-                items(areasWithSaliks, key = { it.areaId }) { area ->
+                items(areasForBazam, key = { it.areaId }) { area ->
                     StatTile(
                         label = area.areaName,
                         count = counts[area.areaId] ?: 0,
@@ -114,10 +140,10 @@ fun BazamAreasScreen(
                 }
             }
 
-            if (areasWithSaliks.isEmpty() && allCount == 0) {
+            if (areasForBazam.isEmpty() && allCount == 0) {
                 EmptyState(
-                    title = "No active areas",
-                    subtitle = "Areas with 0 saliks are hidden from this summary.",
+                    title = "No areas found",
+                    subtitle = "No areas exist for this bazam.",
                     icon = Icons.Default.LocationOn
                 )
             }

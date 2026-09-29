@@ -1,5 +1,13 @@
 package com.example.salik_management_system.features.settings.ui.screens
 
+import android.app.Activity
+import android.content.Intent
+import android.provider.ContactsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import com.example.salik_management_system.core.utils.AccessControl
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,11 +43,42 @@ import com.example.salik_management_system.ui.theme.brandTopAppBarColors
 @Composable
 fun SettingsScreen(
     onLoggedOut: () -> Unit = {},
+    onImportContact: (String, String) -> Unit = { _, _ -> },
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val session = state.session
+    val csvPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {
+        it?.let(viewModel::previewCsv)
+    }
+    val contactPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                runCatching {
+                    context.contentResolver.query(uri, arrayOf(
+                        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                        ContactsContract.CommonDataKinds.Phone.NUMBER,
+                    ), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) onImportContact(cursor.getString(0).orEmpty(), cursor.getString(1).orEmpty())
+                    }
+                }.onFailure { viewModel.reportMessage("Cannot open contact") }
+            }
+        }
+    }
+    if (state.contactPreview.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelImport,
+            title = { Text("Import Saliks?") },
+            text = { Text(state.contactPreview.joinToString("\n")) },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmImport, enabled = !state.importBusy) {
+                    Text(if (state.importBusy) "Importing…" else "Import")
+                }
+            },
+            dismissButton = { TextButton(onClick = viewModel::cancelImport, enabled = !state.importBusy) { Text("Cancel") } },
+        )
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -99,17 +138,20 @@ fun SettingsScreen(
                     showDivider = true,
                     onClick = { viewModel.exportCsv { context.startActivity(it) } },
                 )
-                IosSettingsRow(
-                    title = "Import contacts (preview)",
-                    showChevron = true,
-                    showDivider = state.contactPreview.isNotEmpty() || state.message != null,
-                    onClick = { viewModel.importContactsStub() },
-                )
-                if (state.contactPreview.isNotEmpty()) {
+                if (session != null && AccessControl.canCreate(session.role)) {
                     IosSettingsRow(
-                        title = state.contactPreview.joinToString("\n"),
-                        subtitle = null,
-                        showDivider = state.message != null,
+                        title = if (state.importBusy) "Reading / importing…" else "Import saliks (CSV)",
+                        subtitle = "Use exported CSV columns. Review before saving.",
+                        enabled = !state.importBusy,
+                        onClick = { csvPicker.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel")) },
+                    )
+                    IosSettingsRow(
+                        title = "Import contact",
+                        subtitle = "Choose a phone number, complete details, then save.",
+                        onClick = {
+                            runCatching { contactPicker.launch(Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)) }
+                                .onFailure { viewModel.reportMessage("No contacts app available") }
+                        },
                     )
                 }
                 state.message?.let { msg ->

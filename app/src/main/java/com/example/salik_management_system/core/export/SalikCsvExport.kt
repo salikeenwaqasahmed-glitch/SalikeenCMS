@@ -8,6 +8,8 @@ object SalikCsvExport {
         val sb = StringBuilder()
         sb.appendLine(
             listOf(
+                "areaId",
+                "bazamId",
                 "name",
                 "fatherName",
                 "mobileNumber",
@@ -27,6 +29,8 @@ object SalikCsvExport {
             val areaLabel = areaLookup[s.areaId]?.areaName ?: s.areaId
             sb.appendLine(
                 listOf(
+                    esc(s.areaId),
+                    esc(s.bazamId),
                     esc(s.name),
                     esc(s.fatherName),
                     esc(s.mobileNumber),

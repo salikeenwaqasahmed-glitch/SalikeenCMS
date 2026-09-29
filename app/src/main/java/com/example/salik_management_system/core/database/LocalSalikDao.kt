@@ -18,7 +18,7 @@ interface LocalSalikDao {
         """
         SELECT * FROM local_saliks
         WHERE sync_status != '${SyncStatus.pendingDelete}'
-        AND (:genderFilter IS NULL OR gender_id = :genderFilter)
+        AND (:genderFilter IS NULL OR gender_id = :genderFilter COLLATE NOCASE)
         AND (:approvalStatus IS NULL OR approval_status = :approvalStatus)
         AND (:addedByUid IS NULL OR :addedByUid = '' OR added_by_uid = :addedByUid)
         """,
@@ -33,7 +33,7 @@ interface LocalSalikDao {
         """
         SELECT * FROM local_saliks
         WHERE sync_status != '${SyncStatus.pendingDelete}'
-        AND (:genderFilter IS NULL OR gender_id = :genderFilter)
+        AND (:genderFilter IS NULL OR gender_id = :genderFilter COLLATE NOCASE)
         AND (:approvalStatus IS NULL OR approval_status = :approvalStatus)
         AND (:addedByUid IS NULL OR :addedByUid = '' OR added_by_uid = :addedByUid)
         """,
@@ -54,7 +54,7 @@ interface LocalSalikDao {
         """
         SELECT COUNT(*) FROM local_saliks
         WHERE sync_status != '${SyncStatus.pendingDelete}'
-        AND (:genderFilter IS NULL OR gender_id = :genderFilter)
+        AND (:genderFilter IS NULL OR gender_id = :genderFilter COLLATE NOCASE)
         AND (:approvalStatus IS NULL OR approval_status = :approvalStatus)
         AND (:addedByUid IS NULL OR :addedByUid = '' OR added_by_uid = :addedByUid)
         """,

@@ -63,7 +63,7 @@ fun SalikMessageQueueScreen(
     val context = LocalContext.current
 
     LaunchedEffect(queue.size) {
-        if (index >= queue.size) index = 0
+        if (index > queue.size) index = queue.size
     }
 
     val current = queue.getOrNull(index)
@@ -88,7 +88,9 @@ fun SalikMessageQueueScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (queue.isEmpty()) {
+            if (queue.isNotEmpty() && index == queue.size) {
+                EmptyState(title = "Queue complete", subtitle = "All contacts processed. Confirm delivery in your messaging app.")
+            } else if (queue.isEmpty()) {
                 EmptyState(
                     title = "No saliks in queue",
                     subtitle = "Open from directory selection or browse first.",
@@ -138,15 +140,14 @@ fun SalikMessageQueueScreen(
                                     MessageChannel.Sms ->
                                         ContactLauncher.smsIntent(phone, template)
                                 }
-                                ContactLauncher.launch(context, intent)
-                                if (index < queue.lastIndex) index++
+                                if (ContactLauncher.launch(context, intent)) index++
                             },
                             modifier = Modifier.weight(1f),
                         ) {
                             Text("Send / Open")
                         }
                         OutlinedButton(
-                            onClick = { if (index < queue.lastIndex) index++ },
+                            onClick = { if (index < queue.size) index++ },
                             modifier = Modifier.weight(1f),
                         ) {
                             Text("Skip")

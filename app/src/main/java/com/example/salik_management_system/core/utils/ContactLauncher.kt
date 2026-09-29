@@ -10,16 +10,16 @@ object ContactLauncher {
     fun callIntent(phone: String): Intent? {
         val digits = digitsOnly(phone)
         if (digits.isEmpty()) return null
-        return Intent(Intent.ACTION_DIAL, Uri.parse("tel:+$digits"))
+        return Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + (if (phone.trim().startsWith("+")) "+" else "") + digits))
     }
 
     fun smsIntent(phone: String, body: String? = null): Intent? {
         val digits = digitsOnly(phone)
         if (digits.isEmpty()) return null
         val uri = if (body.isNullOrBlank()) {
-            Uri.parse("sms:+$digits")
+            Uri.parse("sms:" + (if (phone.trim().startsWith("+")) "+" else "") + digits)
         } else {
-            Uri.parse("sms:+$digits").buildUpon().appendQueryParameter("body", body).build()
+            Uri.parse("sms:" + (if (phone.trim().startsWith("+")) "+" else "") + digits).buildUpon().appendQueryParameter("body", body).build()
         }
         return Intent(Intent.ACTION_SENDTO, uri)
     }
@@ -32,10 +32,10 @@ object ContactLauncher {
         return Intent(Intent.ACTION_VIEW, builder.build())
     }
 
-    fun launch(context: Context, intent: Intent?) {
-        if (intent == null) return
-        runCatching {
+    fun launch(context: Context, intent: Intent?): Boolean {
+        if (intent == null) return false
+        return runCatching {
             context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }
+        }.isSuccess
     }
 }

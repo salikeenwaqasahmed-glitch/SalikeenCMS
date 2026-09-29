@@ -1,6 +1,6 @@
 package com.example.salik_management_system.auth.ui.viewmodel
 
-import android.util.Log
+import com.example.salik_management_system.core.sync.SyncService
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.salik_management_system.auth.data.AuthRepository
@@ -12,6 +12,7 @@ import com.example.salik_management_system.core.auth.OfflineWrongPasswordExcepti
 import com.example.salik_management_system.core.auth.composeStaffEmail
 import com.example.salik_management_system.core.auth.localPartFromStaffEmail
 import com.example.salik_management_system.core.auth.staffEmailLocalPartError
+import com.example.salik_management_system.core.utils.AppLog
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuthException
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,6 +38,7 @@ data class AuthUiState(
 class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val localAuthStore: LocalAuthStore,
+    private val syncService: SyncService,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -50,11 +52,17 @@ class AuthViewModel @Inject constructor(
             val localPart = remembered?.let { localPartFromStaffEmail(it) }.orEmpty()
             try {
                 authRepository.fetchSession()
+                val restored = authRepository.session.value
+                AppLog.i(
+                    "Auth",
+                    "Session bootstrap done uid=${restored?.uid} role=${restored?.role?.toFirestore()}",
+                )
                 _uiState.value = _uiState.value.copy(
                     isBootstrapping = false,
                     rememberedLocalPart = localPart,
                 )
             } catch (e: Exception) {
+                AppLog.e("Auth", "Session bootstrap failed: ${e.message}", e)
                 _uiState.value = _uiState.value.copy(
                     isBootstrapping = false,
                     rememberedLocalPart = localPart,
@@ -86,10 +94,16 @@ class AuthViewModel @Inject constructor(
                 offlineReadyMessage = null,
             )
             val email = composeStaffEmail(trimmedUser)
-            Log.d(TAG, "signIn attempt for resolved email=$email")
+            AppLog.i("Auth", "signIn start email=$email")
             try {
                 val hadLocal = localAuthStore.getUserByEmail(email) != null
                 authRepository.signIn(email, password)
+                AppLog.i("Auth", "signIn ok uid=${authRepository.session.value?.uid}")
+                // One sync per explicit successful login, independent of screen lifecycle.
+                val signedInSession = authRepository.session.value
+                viewModelScope.launch {
+                    syncService.syncNow(signedInSession)
+                }
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     offlineReadyMessage = if (!hadLocal) {
@@ -99,22 +113,26 @@ class AuthViewModel @Inject constructor(
                     },
                 )
             } catch (_: NoLocalUserOfflineException) {
+                AppLog.w("Auth", "signIn failed: first login needs internet")
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     requiresOnlineDialog = true,
                     errorMessage = "Internet required for first login on this device.",
                 )
             } catch (_: OfflineWrongPasswordException) {
+                AppLog.w("Auth", "signIn failed: wrong password (offline)")
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     errorMessage = "Wrong username or password.",
                 )
             } catch (_: ProfileNotFoundException) {
+                AppLog.w("Auth", "signIn failed: Firestore profile missing")
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     errorMessage = "Staff profile not found — ask admin.",
                 )
             } catch (e: FirebaseAuthException) {
+                AppLog.w("Auth", "signIn FirebaseAuthException code=${e.errorCode}")
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     errorMessage = mapFirebaseAuthError(e),
@@ -130,7 +148,7 @@ class AuthViewModel @Inject constructor(
                     isLoading = false,
                     errorMessage = mapped ?: "Sign-in failed.",
                 )
-                Log.d(TAG, "signIn failed: $e")
+                AppLog.e("Auth", "signIn failed: $e", e)
             }
         }
     }
@@ -149,6 +167,7 @@ class AuthViewModel @Inject constructor(
 
     fun signOut() {
         viewModelScope.launch {
+            AppLog.i("Auth", "signOut")
             authRepository.signOut()
         }
     }
@@ -167,7 +186,4 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    companion object {
-        private const val TAG = "AuthViewModel"
-    }
 }

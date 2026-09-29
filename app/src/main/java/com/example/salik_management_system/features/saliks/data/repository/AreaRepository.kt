@@ -12,6 +12,7 @@ import com.example.salik_management_system.features.saliks.data.mapper.toDomain
 import com.example.salik_management_system.features.saliks.data.mapper.toEntity
 import com.example.salik_management_system.features.saliks.domain.model.Area
 import com.example.salik_management_system.features.saliks.domain.model.Bazam
+import com.example.salik_management_system.features.saliks.domain.model.isDefaultBazam
 import com.example.salik_management_system.features.saliks.domain.model.kDefaultBazamId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -64,8 +65,11 @@ class AreaRepository @Inject constructor(
 
     suspend fun areasForBazam(bazamId: String): List<Area> {
         val id = bazamId.trim().ifEmpty { kDefaultBazamId }
+        val isTargetDefault = isDefaultBazam(id)
         return allAreasLocal()
-            .filter { it.bazamId == id }
+            .filter { a ->
+                a.bazamId.equals(id, ignoreCase = true) || (isTargetDefault && isDefaultBazam(a.bazamId))
+            }
             .sortedBy { it.areaName.lowercase() }
     }
 

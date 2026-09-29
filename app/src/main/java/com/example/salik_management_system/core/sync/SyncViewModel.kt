@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.salik_management_system.auth.data.AuthRepository
 import com.example.salik_management_system.core.network.ConnectivityService
+import com.example.salik_management_system.core.utils.AppLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -38,7 +39,9 @@ class SyncViewModel @Inject constructor(
         if (_uiState.value.isSyncing) return
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSyncing = true, lastMessage = null)
+            AppLog.d("Sync", "syncNow invoked online=${isOnline.value}")
             val result = syncService.syncNow(authRepository.session.value)
+            AppLog.i("Sync", "syncNow finished ok=${result.ok} msg=${result.message}")
             _uiState.value = SyncUiState(
                 isSyncing = false,
                 lastMessage = result.message,
